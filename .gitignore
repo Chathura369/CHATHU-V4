@@ -1,18 +1,10 @@
-# Unnecessary for bot deployment
-artifacts/admin-panel/
-artifacts/api-server/
-artifacts/mockup-sandbox/
-lib/
-.local/
 node_modules/
-pnpm-workspace.yaml
-push-to-github.sh
-
-# Bot runtime files
-artifacts/bot/node_modules/
-artifacts/bot/session/
-artifacts/bot/sessions/
-artifacts/bot/downloads/
-artifacts/bot/db.json
+session/
+sessions/
+downloads/
 *.log
 .env
+yt-dlp-linux
+yt-dlp.exe
+yt-dlp-macos
+db.json
