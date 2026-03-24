@@ -1,87 +1,91 @@
+# 🌸 CHATHU MD Bot — v2.1.0 🌸
 
+[![Node.js](https://img.shields.io/badge/Node.js-18%2B-green.svg)](https://nodejs.org/)
+[![WhatsApp](https://img.shields.io/badge/WhatsApp-Baileys-blue.svg)](https://github.com/WhiskeySockets/Baileys)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-## Features
+**CHATHU MD** is a professional-grade, high-performance WhatsApp multi-device bot featuring the stunning **Cyber-Glass Admin Dashboard** (v3). Engineered for 24/7 stability, it provides a seamless management experience for both single and multiple accounts.
 
-- **Multi-Session Management** – Run and manage multiple WhatsApp sessions simultaneously
-- **Admin Dashboard** – Cyberpunk-themed web panel to control everything
-- **QR / Pair Code Linking** – Connect WhatsApp accounts via QR scan or pair code
-- **Broadcast** – Send messages to multiple recipients/groups at once
-- **Economy System** – Virtual currency with wallet, transfer, leaderboard
-- **88+ Commands** – Media, utilities, fun, NSFW (toggleable), and more
-- **Scheduler** – Schedule messages to send at a specific time
-- **Auto-Reply** – Set up automated responses with custom triggers
-- **Group Moderation** – Kick, add, promote, anti-link, welcome messages
-- **User Management** – Block, unblock, grant premium access
+---
 
-## Quick Start
+## 💎 Key Features
 
-### Prerequisites
+- **🌐 Cyber-Glass Admin Panel (v3)**: A beautiful, real-time web dashboard with glassmorphism aesthetics for full bot control.
+- **⚡ Cyber-Pulse Monitor**: High-precision real-time monitoring of Network (Rx/Tx) and System Memory (Node.js Heap).
+- **📱 Multi-Device Session Manager**: Link and manage multiple WhatsApp accounts concurrently with high-visibility pairing codes (phone number link) or QR scans.
+- **🛡️ Global Protections**: Integrated Anti-Link and Anti-Spam protection systems with dashboard toggle support.
+- **🌸 Premium Menu System**: Elegant, Sakura-themed command menu with 89+ powerful commands (Media, Search, Utility, Fun, NSFW).
+- **🔄 Auto-Self Healing**: Built-in anti-crash loop that recovers the system within 10 seconds of any fatal failure.
+- **💬 Broadcast Manager**: Send announcements to all groups or users with history tracking.
 
-- Node.js 18+
-- npm
+---
 
-### Local Setup
+## 🚀 Quick Start
+
+### 📋 Prerequisites
+
+- **Node.js**: 18.x or 20.x
+- **Git**: Installed for repository management
+
+### ⚙️ Installation
 
 ```bash
-# Clone the repo
-git clone https://github.com/YOUR_USERNAME/supreme-md-bot.git
-cd supreme-md-bot
+# Clone the repository
+git clone https://github.com/Chathura369/MY-BOT-V2.git
+cd MY-BOT-V2
 
 # Install dependencies
 npm install
 
-# Copy environment file and edit your settings
-cp .env.example .env
-
-# Start the bot
+# Start the command center
 npm start
 ```
 
-Then open `http://localhost:5000` in your browser and log in.
+Once started, open **`http://localhost:5000`** in your browser to access the Cyber-Glass Dashboard.
 
-### Environment Variables
+---
+
+## 🔒 Configuration
+
+Edit the `config.js` or create a `.env` file to set your primary credentials:
 
 | Variable | Default | Description |
 |---|---|---|
-| `PORT` | `5000` | HTTP server port |
-| `OWNER_NUMBER` | `94742514900` | WhatsApp number (with country code, no +) |
+| `OWNER_NUMBER` | `94711122233` | Primary bot owner WhatsApp number |
 | `ADMIN_USER` | `admin` | Dashboard login username |
-| `ADMIN_PASS` | `chathura123` | Dashboard login password |
-| `JWT_SECRET` | (set this!) | Secret for JWT tokens |
-| `BOT_NAME` | `CHATHU MD Bot` | Display name |
-| `PREFIX` | `.` | Command prefix character |
-| `PREMIUM_CODE` | `SUPREME2026` | Code users enter to unlock premium |
+| `ADMIN_PASS` | `chathu123` | Dashboard login password |
+| `PREFIX` | `.` | Command prefix for triggers |
+| `JWT_SECRET` | `secret` | Digital signature for dashboard auth |
 
-## Deploy to Railway
+---
 
-1. Fork this repository on GitHub
-2. Go to [railway.app](https://railway.app) -> New Project -> Deploy from GitHub
-3. Select your forked repo
-4. Add environment variables in the Railway dashboard (see table above)
-5. Railway auto-deploys - visit your Railway URL to access the dashboard
+## 🧩 Project Architecture
 
-[![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/new/template)
-
-## Project Structure
-
-```
-├── index.js          # Bot entry point
-├── dashboard.js      # Express REST API + Socket.IO server
-├── config.js         # Configuration (reads from env vars)
-├── commands.js       # All 88+ command handlers
-├── session/          # Baileys session credentials (gitignored)
-├── downloads/        # Temp download folder (gitignored)
-├── railway.json      # Railway deployment config
-└── .env.example      # Example environment variables
+```bash
+├── index.js          # Bootloader & Anti-Crash Engine
+├── bot.js            # Core WhatsApp Socket & Message Pipeline
+├── dashboard.js      # Express API & Socket.IO Dashboard Server
+├── session-manager.js # Multi-Device Account Handler
+├── lib/              # Centralized Command & Utility Logic
+├── public/           # Admin Dashboard (Cyber-Glass UI)
+├── session/          # Main Bot Session Data (Gitignored)
+└── sessions/         # Secondary Account Data (Gitignored)
 ```
 
-## Default Dashboard Credentials
+---
+
+## 🔑 Default Credentials
 
 - **Username:** `admin`
-- **Password:** `chathura123`
+- **Password:** `chathu123`
 
-Change these using environment variables before deploying!
+---
 
-## License
+## 📜 License
 
-MIT
+Distributed under the **MIT License**. See `LICENSE` for more information.
+
+---
+
+**Developed with ❤️ by Chathura**  
+*Empowering your WhatsApp experience with speed and style.*
