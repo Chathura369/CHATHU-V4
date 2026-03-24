@@ -9,12 +9,12 @@ echo "Adding all files..."
 git add -A
 
 echo "Committing..."
-git commit -m "WhatsApp Bot Admin Panel - Full Setup" --allow-empty
+git commit -m "Add Railway deployment config (Dockerfile, railway.json)" --allow-empty
 
 echo "Pushing to GitHub..."
 git branch -M main
 git push -u origin main --force
 
 echo ""
-echo "✅ Successfully pushed to GitHub!"
-echo "👉 https://github.com/Chathura369/MY-BOT-V2"
+echo "Done! Pushed to GitHub!"
+echo "Now go to https://railway.app and deploy from this repo."
