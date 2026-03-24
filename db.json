@@ -1,0 +1,46 @@
+{
+  "users": {
+    "139273575596047@lid": {
+      "balance": 0,
+      "lastDaily": 1773858902138,
+      "items": [],
+      "wins": 0
+    }
+  },
+  "groups": {},
+  "settings": {
+    "nsfw": false,
+    "antilink": false,
+    "antibad": false,
+    "botName": "Supreme MD Bot",
+    "prefix": ".",
+    "autoRead": true,
+    "autoTyping": true,
+    "nsfwEnabled": true
+  },
+  "autoReply": [
+    {
+      "id": "1774331231374",
+      "trigger": "Hi",
+      "response": "Bijja",
+      "matchType": "regex",
+      "caseSensitive": true,
+      "groupsOnly": false,
+      "pmOnly": true,
+      "enabled": true
+    }
+  ],
+  "scheduler": [
+    {
+      "id": "1774334673790",
+      "message": "Hi",
+      "sessionId": "main",
+      "targetType": "groups",
+      "targets": [],
+      "scheduledAt": "2026-03-24T10:48:00.000Z",
+      "sent": false,
+      "sentAt": null,
+      "createdAt": "2026-03-24T06:44:33.790Z"
+    }
+  ]
+}
