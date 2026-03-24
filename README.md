@@ -45,41 +45,6 @@ Once started, open **`http://localhost:5000`** in your browser to access the Cyb
 
 ---
 
-## 🔒 Configuration
-
-Edit the `config.js` or create a `.env` file to set your primary credentials:
-
-| Variable | Default | Description |
-|---|---|---|
-| `OWNER_NUMBER` | `94711122233` | Primary bot owner WhatsApp number |
-| `ADMIN_USER` | `admin` | Dashboard login username |
-| `ADMIN_PASS` | `chathu123` | Dashboard login password |
-| `PREFIX` | `.` | Command prefix for triggers |
-| `JWT_SECRET` | `secret` | Digital signature for dashboard auth |
-
----
-
-## 🧩 Project Architecture
-
-```bash
-├── index.js          # Bootloader & Anti-Crash Engine
-├── bot.js            # Core WhatsApp Socket & Message Pipeline
-├── dashboard.js      # Express API & Socket.IO Dashboard Server
-├── session-manager.js # Multi-Device Account Handler
-├── lib/              # Centralized Command & Utility Logic
-├── public/           # Admin Dashboard (Cyber-Glass UI)
-├── session/          # Main Bot Session Data (Gitignored)
-└── sessions/         # Secondary Account Data (Gitignored)
-```
-
----
-
-## 🔑 Default Credentials
-
-- **Username:** `admin`
-- **Password:** `chathu123`
-
----
 
 ## 📜 License
 
