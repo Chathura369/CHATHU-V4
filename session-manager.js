@@ -51,6 +51,7 @@ function getAll() {
         number: s.number || null,
         status: s.status,
         startedAt: s.startedAt,
+        platform: s.platform || null,
         qrAvailable: !!s.qrDataUrl && s.status !== 'Connected',
         pairCode: s.pairCode || null,
     }));
@@ -108,7 +109,7 @@ async function startSocket(id, entry) {
                 creds: state.creds,
                 keys: makeCacheableSignalKeyStore(state.keys, pino({ level: 'silent' })),
             },
-            browser: ['SupremeBot-Session', 'Chrome', '131.0'],
+            browser: ['ChathuMDBot-Session', 'Chrome', '131.0'],
             syncFullHistory: false,
             markOnlineOnConnect: false,
             printQRInTerminal: false,
@@ -188,11 +189,18 @@ async function startSocket(id, entry) {
                 const num = sock.user?.id?.split(':')[0] || sock.user?.id || 'Unknown';
                 entry.number = num;
                 entry.status = 'Connected';
+                sock.startTime = Math.floor(Date.now() / 1000);
+                
+                // Capture Device Metadata
+                const device = sock.authState?.creds?.me?.platform || 'Unknown';
+                const brand = sock.authState?.creds?.me?.deviceBrand || '';
+                entry.platform = `${device}${brand ? ' (' + brand + ')' : ''}`;
+
                 entry.qr = null;
                 entry.qrDataUrl = null;
                 entry.pairCode = null;
-                emit('session:update', { id, status: 'Connected', number: num });
-                logger(`[Session ${id}] Connected as ${num}`);
+                emit('session:update', { id, status: 'Connected', number: num, platform: entry.platform });
+                logger(`[Session ${id}] Connected as ${num} on ${entry.platform}`);
             }
         });
 

@@ -7,6 +7,7 @@ const path = require('path');
 const fs = require('fs');
 const os = require('os');
 const jwt = require('jsonwebtoken');
+const si = require('systeminformation');
 const { PORT, ADMIN_USER, ADMIN_PASS, JWT_SECRET, DOWNLOAD_DIR } = require('./config');
 const appState = require('./state');
 const { setIO } = require('./logger');
@@ -14,50 +15,47 @@ const { setIO } = require('./logger');
 const app = express();
 const server = http.createServer(app);
 
-// ── Network stats tracker ──────────────────────────────────────────────────
-let netPrev = null;
-let netPrevTime = null;
+// ── Network & CPU stats tracker ──────────────────────────────────────────────────
 let netSpeedRx = 0, netSpeedTx = 0;
 let netTotalRx = 0, netTotalTx = 0;
+let currentCpuLoad = 0;
+let lastRx = 0, lastTx = 0, lastTime = 0;
 
-function readNetStats() {
+async function updateStats() {
     try {
-        const data = fs.readFileSync('/proc/net/dev', 'utf8');
-        let rx = 0, tx = 0;
-        data.split('\n').forEach(line => {
-            const parts = line.trim().split(/\s+/);
-            if (parts.length < 10 || parts[0].startsWith('Inter') || parts[0].startsWith('face')) return;
-            const iface = parts[0].replace(':', '');
-            if (iface === 'lo') return;
-            rx += parseInt(parts[1]) || 0;
-            tx += parseInt(parts[9]) || 0;
-        });
-        return { rx, tx };
-    } catch { return null; }
+        const net = await si.networkStats();
+        if (net && net.length > 0) {
+            let tr = 0, tt = 0;
+            const now = Date.now();
+            const elapsed = (now - lastTime) / 1000;
+
+            // Use the primary/default interface if possible, or aggregate active ones
+            const active = net.find(i => i.operstate === 'up' && i.iface !== 'lo') || net[0];
+            if (active) {
+                tr = active.rx_bytes || 0;
+                tt = active.tx_bytes || 0;
+            }
+
+            if (lastTime > 0 && elapsed > 0) {
+                netSpeedRx = Math.max(0, (tr - lastRx) / elapsed);
+                netSpeedTx = Math.max(0, (tt - lastTx) / elapsed);
+            }
+
+            netTotalRx = tr;
+            netTotalTx = tt;
+            lastRx = tr;
+            lastTx = tt;
+            lastTime = now;
+        }
+
+        const load = await si.currentLoad();
+        currentCpuLoad = load.currentLoad || 0;
+    } catch (e) { console.error('Stats error:', e.message); }
 }
 
-function updateNetSpeed() {
-    const now = Date.now();
-    const cur = readNetStats();
-    if (!cur) return;
-    if (netPrev && netPrevTime) {
-        const dt = (now - netPrevTime) / 1000;
-        netSpeedRx = Math.max(0, Math.round((cur.rx - netPrev.rx) / dt));
-        netSpeedTx = Math.max(0, Math.round((cur.tx - netPrev.tx) / dt));
-        netTotalRx = cur.rx;
-        netTotalTx = cur.tx;
-    } else {
-        netTotalRx = cur.rx;
-        netTotalTx = cur.tx;
-    }
-    netPrev = cur;
-    netPrevTime = now;
-}
-
-// Sample every 2 seconds
-const netBaseline = readNetStats();
-if (netBaseline) { netTotalRx = netBaseline.rx; netTotalTx = netBaseline.tx; netPrev = netBaseline; netPrevTime = Date.now(); }
-setInterval(updateNetSpeed, 2000);
+// Initial update and periodic loop every 2 seconds
+updateStats();
+setInterval(updateStats, 2000);
 
 const io = new Server(server, { cors: { origin: '*' } });
 
@@ -96,7 +94,7 @@ app.get('/bot-api/stats', authMiddleware, (req, res) => {
     const memTotal = os.totalmem();
     const memFree  = os.freemem();
     const memUsed  = memTotal - memFree;
-    const cpuLoad  = os.loadavg()[0];
+    const cpuLoad  = currentCpuLoad;
 
     let fileCount = 0, fileSize = 0;
     try {
@@ -246,7 +244,7 @@ app.get('/bot-api/sessions', authMiddleware, (req, res) => {
 app.post('/bot-api/sessions', authMiddleware, async (req, res) => {
     const { id, pairMode, phone } = req.body || {};
     if (!id || !/^[a-zA-Z0-9_-]{2,30}$/.test(id)) {
-        return res.status(400).json({ error: 'Invalid session ID (2–30 alphanumeric chars)' });
+        return res.status(400).json({ error: 'Invalid session ID. Use 2-30 characters (A-Z, 0-9, _, -) and no spaces.' });
     }
     if (pairMode && phone) {
         const cleaned = phone.replace(/[^0-9]/g, '');
@@ -276,8 +274,9 @@ app.post('/bot-api/sessions/:id/paircode', authMiddleware, async (req, res) => {
 app.get('/bot-api/sessions/:id/qr', authMiddleware, (req, res) => {
     const { id } = req.params;
     if (id === '__main__') {
+        if (appState.getStatus() === 'Connected') return res.status(400).json({ error: 'Bot is already linked! (Connected)' });
         const qr = appState.getMainQr();
-        if (!qr) return res.status(404).json({ error: 'No QR available — bot may already be connected' });
+        if (!qr) return res.status(404).json({ error: 'QR not ready yet. Please wait or refresh.' });
         return res.json({ qrCode: qr });
     }
     const sessionMgr = require('./session-manager');
@@ -365,16 +364,16 @@ app.get('/bot-api/broadcast/history', authMiddleware, (req, res) => {
 });
 
 // ── Bot Control ────────────────────────────────────────────────────────────
-app.post('/bot-api/admin/restart', authMiddleware, (req, res) => {
+app.post('/bot-api/restart', authMiddleware, (req, res) => {
     appState.requestRestart();
-    res.json({ ok: true, message: 'Restart queued — reconnecting in ~5 seconds' });
+    res.json({ ok: true, message: 'Restarting bot...' });
     setTimeout(() => {
         if (appState.isRestartRequested()) {
             appState.clearRestart();
             const { startBot } = require('./bot');
             startBot().catch(console.error);
         }
-    }, 5000);
+    }, 2000);
 });
 
 // ── Settings ───────────────────────────────────────────────────────────────
@@ -769,6 +768,10 @@ app.delete('/bot-api/users/:jid', authMiddleware, (req, res) => {
 app.get('/bot-api/logs', authMiddleware, (req, res) => {
     const limit = Math.min(parseInt(req.query.limit) || 100, 500);
     res.json(appState.getLogs().slice(-limit).reverse());
+});
+app.delete('/bot-api/logs', authMiddleware, (req, res) => {
+    appState.getLogs().length = 0;
+    res.json({ ok: true });
 });
 
 // ── WebSocket ──────────────────────────────────────────────────────────────

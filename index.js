@@ -26,7 +26,7 @@ const sessionMgr = require('./session-manager');
 
 async function main() {
     try {
-        logger('Initializing Super Bot System...');
+        logger('Initializing CHATHU MD System...');
         startDashboard();
 
         // Give dashboard a tick to start, then wire session manager to socket.io
@@ -45,4 +45,14 @@ async function main() {
     }
 }
 
-main();
+async function startWithRetry() {
+    try {
+        await main();
+    } catch (e) {
+        console.error('SYSTEM CRASH:', e);
+        logger(`SYSTEM CRASH: ${e.message}. Restarting in 10s...`);
+        setTimeout(() => startWithRetry(), 10000);
+    }
+}
+
+startWithRetry();

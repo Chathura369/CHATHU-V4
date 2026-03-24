@@ -3,24 +3,47 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Supreme MD — Control Panel</title>
+<title>Chathu MD — Command Center</title>
 <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Outfit:wght@400;600;800&display=swap" rel="stylesheet"/>
 <style>
-*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
-:root{
-  --bg:#050810;--bg1:#090d14;--bg2:#0d1320;--bg3:#121a2a;--bg4:#1a2438;
-  --border:rgba(255,255,255,.055);--border2:rgba(255,255,255,.11);
-  --a:#00ff87;--a2:#00d4ff;
-  --green:#00ff87;--blue:#00d4ff;--purple:#a78bfa;--orange:#fb923c;--red:#f87171;--pink:#f472b6;--yellow:#fbbf24;
-  --text:#e8f0fe;--t2:#7d8fa8;--t3:#334155;
-  --sb:244px;--hh:60px;--r:14px;--r2:10px;
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+:root {
+  --bg: #03050a;
+  --bg-glass: rgba(10, 15, 28, 0.72);
+  --bg-card: rgba(255, 255, 255, 0.035);
+  --border: rgba(255, 255, 255, 0.08);
+  --border-bright: rgba(255, 255, 255, 0.15);
+  
+  --a: #00f2ff; /* Cyan Chrome */
+  --a2: #7000ff; /* Electric Purple */
+  --a-glow: rgba(0, 242, 255, 0.35);
+  
+  --green: #00ff9d; --blue: #00d4ff; --purple: #b794f4; --orange: #ff9f43; --red: #ff4d4d;
+  --text: #f0f4f8; --t2: #94a3b8; --t3: #475569;
+  
+  --sb: 260px; --hh: 64px; --r: 20px; --r2: 14px;
 }
-html,body{height:100%;overflow:hidden}
-body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--text);font-size:14px}
-::-webkit-scrollbar{width:3px;height:3px}
-::-webkit-scrollbar-thumb{background:rgba(255,255,255,.08);border-radius:9px}
+html, body { height: 100%; overflow: hidden; font-family: 'Inter', system-ui, sans-serif; background: var(--bg); color: var(--text); }
+body { font-size: 14px; }
+
+/* Mesh Gradient Background */
+.mesh-bg {
+  position: fixed; inset: 0; z-index: -1; pointer-events: none;
+  background: 
+    radial-gradient(circle at 20% 20%, rgba(0, 242, 255, 0.12) 0%, transparent 40%),
+    radial-gradient(circle at 80% 80%, rgba(112, 0, 255, 0.12) 0%, transparent 40%),
+    radial-gradient(circle at 50% 50%, rgba(3, 5, 10, 1) 0%, rgba(3, 5, 10, 1) 100%);
+  filter: blur(80px);
+  animation: mesh-move 20s ease-in-out infinite alternate;
+}
+@keyframes mesh-move {
+  0% { transform: scale(1); }
+  100% { transform: scale(1.1) rotate(2deg); }
+}
+
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-thumb { background: var(--border-bright); border-radius: 10px; }
 
 /* Grid BG */
 body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(0,255,135,.022) 1px,transparent 1px),linear-gradient(90deg,rgba(0,255,135,.022) 1px,transparent 1px);background-size:48px 48px;animation:gp 40s linear infinite;z-index:0;pointer-events:none}
@@ -35,11 +58,11 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
 .lorb{width:68px;height:68px;border-radius:20px;margin:0 auto 16px;background:linear-gradient(135deg,var(--a),var(--a2));display:flex;align-items:center;justify-content:center;font-size:30px;box-shadow:0 0 0 8px rgba(0,255,135,.1),0 0 50px rgba(0,255,135,.25);position:relative}
 .lorb::after{content:'';position:absolute;inset:-12px;border-radius:28px;border:1px solid rgba(0,255,135,.15);animation:op 3s ease-in-out infinite}
 @keyframes op{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.3;transform:scale(1.06)}}
-.lh h1{font-size:1.55rem;font-weight:900;letter-spacing:-.5px;background:linear-gradient(135deg,#fff 30%,rgba(255,255,255,.55));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
-.lh p{color:var(--t2);font-size:.82rem;margin-top:4px}
-.lbg{display:inline-flex;align-items:center;gap:5px;background:rgba(0,255,135,.07);border:1px solid rgba(0,255,135,.18);color:var(--a);font-size:.67rem;font-weight:800;padding:3px 10px;border-radius:99px;margin-top:8px;letter-spacing:.06em}
-.lbg i{width:5px;height:5px;border-radius:50%;background:var(--a);animation:bl 1.5s ease-in-out infinite;display:inline-block}
-@keyframes bl{0%,100%{opacity:1}50%{opacity:.15}}
+.lh h1{font-size:1.8rem;font-weight:900;letter-spacing:-1px;background:linear-gradient(135deg,#fff 30%,rgba(255,255,255,.55));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent; font-family: 'Outfit'; }
+.lh p{color:var(--t2);font-size:.85rem;margin-top:6px; font-weight: 500;}
+.lbg{display:inline-flex;align-items:center;gap:6px;background:rgba(0,252,255,0.08);border:1px solid rgba(0,252,255,0.25);color:var(--a);font-size:.7rem;font-weight:800;padding:4px 12px;border-radius:99px;margin-top:12px;letter-spacing:.08em; box-shadow: 0 0 15px rgba(0,252,255,0.1); }
+.lbg i{width:6px;height:6px;border-radius:50%;background:var(--a);animation:bl 1.5s ease-in-out infinite;display:inline-block; box-shadow: 0 0 8px var(--a); }
+@keyframes bl{0%,100%{opacity:1; transform: scale(1);} 50%{opacity:.3; transform: scale(0.8);}}
 .fld{margin-bottom:13px}
 .fld label{display:block;font-size:.67rem;font-weight:800;color:var(--t2);text-transform:uppercase;letter-spacing:.1em;margin-bottom:6px}
 .inp{width:100%;padding:11px 14px;border-radius:10px;border:1.5px solid var(--border2);background:rgba(255,255,255,.03);color:var(--text);font-family:inherit;font-size:.9rem;outline:none;transition:.2s}
@@ -111,10 +134,10 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
 .tba.dr:hover{border-color:var(--red);color:var(--red);background:rgba(248,113,113,.05)}
 
 /* Content */
-.cnt{flex:1;overflow-y:auto;overflow-x:hidden;padding:20px 22px}
-.page{display:none;animation:pi .2s cubic-bezier(.22,1,.36,1)}
+.cnt{flex:1;overflow-y:auto;overflow-x:hidden;padding:20px 22px;overflow-anchor:none}
+.page{display:none}
 .page.active{display:block}
-@keyframes pi{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:none}}
+@keyframes pi{from{opacity:0}to{opacity:1}}
 
 /* Page header */
 .ph{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:11px;margin-bottom:20px}
@@ -123,31 +146,55 @@ body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse
 .phr{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 
 /* Stat Cards */
-.sg{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:13px;margin-bottom:18px}
-.sc{background:linear-gradient(145deg,rgba(255,255,255,.04),rgba(255,255,255,.01));border:1px solid var(--border);border-radius:var(--r);padding:17px;position:relative;overflow:hidden;transition:.22s;cursor:default}
-.sc:hover{border-color:rgba(255,255,255,.12);transform:translateY(-2px);box-shadow:0 10px 34px rgba(0,0,0,.28)}
-.sc-glow{position:absolute;top:-18px;right:-18px;width:85px;height:85px;border-radius:50%;background:var(--sc-c,var(--a));opacity:.045;filter:blur(8px)}
-.sc-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
-.sc-ic{width:34px;height:34px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:.95rem;background:rgba(255,255,255,.06);border:1px solid var(--border)}
-.sc-tag{font-size:.67rem;font-weight:800;padding:2px 7px;border-radius:99px;background:rgba(0,255,135,.1);color:var(--a)}
-.sc-val{font-size:1.8rem;font-weight:900;letter-spacing:-.55px;line-height:1}
-.sc-lbl{font-size:.66rem;color:var(--t2);margin-top:5px;text-transform:uppercase;letter-spacing:.08em;font-weight:700}
-.sc-bar{height:3px;background:rgba(255,255,255,.06);border-radius:99px;margin-top:11px;overflow:hidden}
-.sc-fill{height:100%;border-radius:99px;background:var(--sc-c,var(--a));transition:.6s ease;width:0}
+.sg{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:16px;margin-bottom:20px}
+.sc{
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  padding: 16px 18px;
+  position: relative;
+  overflow: hidden;
+  transition: all .3s cubic-bezier(0.4, 0, 0.2, 1);
+  cursor: default;
+  backdrop-filter: blur(10px);
+}
+.sc:hover{
+  border-color: var(--a);
+  transform: translateY(-5px);
+  box-shadow: 0 12px 40px rgba(0,242,255,0.15);
+  background: rgba(255,255,255,0.06);
+}
+.sc-glow{
+  position: absolute; top: -20px; right: -20px; width: 100px; height: 100px;
+  border-radius: 50%; background: var(--sc-c, var(--a));
+  opacity: 0.08; filter: blur(15px); transition: .3s;
+}
+.sc:hover .sc-glow { opacity: 0.15; transform: scale(1.2); }
+.sc-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+.sc-ic{
+  width: 40px; height: 40px; border-radius: 12px; display: flex; 
+  align-items: center; justify-content: center; font-size: 1.1rem; 
+  background: rgba(255,255,255,0.06); border: 1px solid var(--border);
+  transition: .3s;
+}
+.sc:hover .sc-ic { background: var(--sc-c, var(--a)); color: #000; border-color: transparent; }
+.sc-tag{font-size:.65rem;font-weight:900;padding:2px 8px;border-radius:99px;background:rgba(0,255,157,0.12);color:var(--green); letter-spacing: 0.5px;}
+.sc-val{font-size:2rem;font-weight:900;letter-spacing:-0.8px;line-height:1; font-family: 'Outfit'; }
+.sc-lbl{font-size:11px;color:var(--t2);margin-top:6px;text-transform:uppercase;letter-spacing:1px;font-weight:700}
+.sc-bar{height:5px;background:rgba(255,255,255,0.05);border-radius:99px;margin-top:14px;overflow:hidden}
+.sc-fill{height:100%;border-radius:99px;background:var(--sc-c,var(--a));transition:width 1.2s cubic-bezier(0.1, 0, 0.4, 1);width:0; box-shadow: 0 0 10px var(--sc-c, var(--a));}
 
-/* Charts */
-.cg{display:grid;grid-template-columns:1.8fr 1fr;gap:14px;margin-bottom:18px}
-@media(max-width:700px){.cg{grid-template-columns:1fr}}
-.cc{background:linear-gradient(145deg,rgba(255,255,255,.04),rgba(255,255,255,.01));border:1px solid var(--border);border-radius:var(--r);padding:17px}
-.cc h4{font-size:.67rem;font-weight:900;color:var(--t2);text-transform:uppercase;letter-spacing:.1em;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between}
-.cc h4 span{color:var(--t3);font-weight:500}
-.np-g{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin-top:12px}
-.np{background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:8px;padding:8px;text-align:center}
-.np-v{font-size:.83rem;font-weight:800}
-.np-l{font-size:.58rem;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-top:2px}
 
-/* Card */
-.card{background:linear-gradient(145deg,rgba(255,255,255,.04),rgba(255,255,255,.015));border:1px solid var(--border);border-radius:var(--r);padding:18px;margin-bottom:14px}
+
+/* System Pulse v3 */
+.pulse-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:15px;margin-bottom:15px}
+.pulse-card{background:rgba(255,255,255,.015);border:1px solid var(--border);border-radius:16px;padding:15px;position:relative;overflow:hidden;height:85px;display:flex;flex-direction:column;justify-content:center}
+.pulse-card::before{content:'';position:absolute;inset:0;background:linear-gradient(90deg,var(--p-c),transparent);opacity:.04}
+.p-hdr{font-size:.62rem;font-weight:900;color:var(--t3);text-transform:uppercase;letter-spacing:.12em;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center}
+.p-val{font-size:1.15rem;font-weight:900;font-family:'Outfit';color:var(--text);line-height:1}
+.p-bar{height:4px;background:rgba(255,255,255,.05);border-radius:99px;margin-top:10px;overflow:hidden}
+.p-fill{height:100%;transition:width .6s cubic-bezier(.1, 0, 0.4, 1);box-shadow:0 0 10px var(--p-c)}
+.p-sub{font-size:.65rem;color:var(--t3);margin-top:6px;font-weight:600}
 .chd{font-size:.63rem;font-weight:900;color:var(--t3);text-transform:uppercase;letter-spacing:.14em;margin-bottom:15px;display:flex;align-items:center;gap:9px}
 .chd::after{content:'';flex:1;height:1px;background:var(--border)}
 
@@ -216,11 +263,19 @@ select.inp option{background:var(--bg2)}
 .qr-rb:hover{border-color:var(--a);color:var(--a)}
 
 /* Sessions */
-.ssg{display:grid;grid-template-columns:repeat(auto-fill,minmax(205px,1fr));gap:11px}
-.ssc{background:rgba(255,255,255,.025);border:1px solid var(--border);border-radius:var(--r2);padding:15px;transition:.18s}
-.ssc:hover{border-color:var(--border2)}
-.ssn{font-weight:800;font-size:.88rem}
-.ssm{font-size:.72rem;color:var(--t2);margin:3px 0 10px}
+.ssg{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:14px}
+.ssc{background:rgba(255,255,255,0.025);border:1px solid var(--border);border-radius:var(--r);padding:18px;transition:0.25s;position:relative;overflow:hidden;display:flex;flex-direction:column}
+.ssc:hover{border-color:var(--a);background:rgba(255,255,255,0.045);box-shadow:0 10px 30px rgba(0,242,255,0.05)}
+.ssn{font-weight:800;font-size:1.05rem;color:var(--text);display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.ssm{font-size:0.82rem;color:var(--t2);margin-bottom:12px;display:flex;align-items:center;gap:6px}
+.ss-meta{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:15px;padding-top:10px;border-top:1px solid var(--border)}
+.ss-p{display:flex;flex-direction:column;gap:2px}
+.ss-pl{font-size:0.6rem;color:var(--t3);text-transform:uppercase;font-weight:900;letter-spacing:0.05em}
+.ss-pv{font-size:0.75rem;color:var(--t2);font-weight:600}
+.ss-pc-big{background:rgba(0,242,255,0.08);color:var(--a);padding:12px;border-radius:12px;font-family:'Courier New',monospace;font-size:1.5rem;font-weight:900;text-align:center;letter-spacing:0.3em;margin-bottom:15px;border:2px dashed var(--a);text-shadow:0 0 15px rgba(0,242,255,0.4);animation:p-glow 2s infinite alternate}
+@keyframes p-glow{from{box-shadow:0 0 5px rgba(0,242,255,0.1)}to{box-shadow:0 0 20px rgba(0,242,255,0.35)}}
+.bg-pulse{animation:bgp 2s infinite alternate}
+@keyframes bgp{from{background:rgba(0,255,135,0.05)}to{background:rgba(0,255,135,0.15)}}
 
 /* Logs */
 #logbox{background:rgba(0,0,0,.45);border:1px solid var(--border);border-radius:var(--r2);padding:13px;height:460px;overflow-y:auto;font-family:'Courier New',monospace;font-size:.73rem;line-height:1.8}
@@ -252,20 +307,21 @@ select.inp option{background:var(--bg2)}
 .ac{color:var(--a)}
 </style>
 </head>
-<body>
+<!-- BG SHAPES -->
+<div class="mesh-bg"></div>
 
 <!-- LOGIN -->
 <div id="lp">
   <div class="lw">
     <div class="lh">
-      <div class="lorb">🤖</div>
-      <h1>Supreme MD Bot</h1>
-      <p>Ultra-Premium Control Panel</p>
-      <div class="lbg"><i></i> LIVE SYSTEM</div>
+      <div class="lorb">⚡</div>
+      <h1 style="font-family:'Outfit'">Chathu MD</h1>
+      <p>Cyber-Glass Command Center</p>
+      <div class="lbg"><i></i> SYSTEM READY</div>
     </div>
-    <div class="fld"><label>Username</label><input class="inp" id="lu" type="text" value="admin" autocomplete="username" spellcheck="false"/></div>
-    <div class="fld"><label>Password</label><input class="inp" id="lpw" type="password" placeholder="••••••••••" autocomplete="current-password"/></div>
-    <button class="btn-login" id="lbtn" onclick="doLogin()">Sign In →</button>
+    <div class="fld"><label>Operator</label><input class="inp" id="lu" type="text" placeholder="Username" autocomplete="username"/></div>
+    <div class="fld"><label>Access Key</label><input class="inp" id="lpw" type="password" placeholder="••••••••••" autocomplete="current-password"/></div>
+    <button class="btn-login" id="lbtn" onclick="doLogin()">Authorize Access →</button>
     <div id="lerr"></div>
   </div>
 </div>
@@ -277,8 +333,8 @@ select.inp option{background:var(--bg2)}
   <!-- SIDEBAR -->
   <aside class="sb" id="sb">
     <div class="sb-brand">
-      <div class="sb-ic">🤖</div>
-      <div><div class="sb-txt">Supreme MD</div><div class="sb-ver">Pro Panel v3</div></div>
+      <div class="sb-ic" style="background:linear-gradient(135deg, var(--a), var(--a2))">⚡</div>
+      <div><div class="sb-txt" style="font-family:'Outfit'; font-size:1.1rem">Chathu MD</div><div class="sb-ver">Cyber-Glass v4.0</div></div>
     </div>
     <div class="sb-conn" onclick="nav('sessions')">
       <div class="dot" id="dot"></div>
@@ -344,18 +400,27 @@ select.inp option{background:var(--bg2)}
           <div class="sc" style="--sc-c:var(--a)"><div class="sc-glow"></div><div class="sc-top"><div class="sc-ic">📂</div></div><div class="sc-val" id="sfc">0</div><div class="sc-lbl">Files <span id="sfsz" class="txs tm"></span></div></div>
           <div class="sc" style="--sc-c:var(--purple)"><div class="sc-glow" style="background:var(--purple)"></div><div class="sc-top"><div class="sc-ic">🖥️</div></div><div class="sc-val" id="spl" style="font-size:1rem;padding-top:4px">—</div><div class="sc-lbl">Platform <span id="snv" class="txs tm"></span></div></div>
         </div>
-        <div class="cg">
-          <div class="cc">
-            <h4>📶 Network Throughput <span id="nlbl">—</span></h4>
-            <canvas id="nchart" height="140"></canvas>
-            <div class="np-g">
-              <div class="np"><div class="np-v" id="nrx">—</div><div class="np-l">↓ Down</div></div>
-              <div class="np"><div class="np-v" id="ntx">—</div><div class="np-l">↑ Up</div></div>
-              <div class="np"><div class="np-v" id="nrxt" style="font-size:.77rem">—</div><div class="np-l">Total ↓</div></div>
-              <div class="np"><div class="np-v" id="ntxt" style="font-size:.77rem">—</div><div class="np-l">Total ↑</div></div>
-            </div>
+
+        <!-- Pulse v3 -->
+        <div class="pulse-grid">
+          <div class="pulse-card" style="--p-c:var(--a)">
+            <div class="p-hdr"><span>⬇ Network Speed</span><span id="nrx-pct" style="font-family:monospace">0%</span></div>
+            <div id="nrx" class="p-val">0 B/s</div>
+            <div class="p-bar"><div id="nrxf" class="p-fill" style="background:var(--a);width:0"></div></div>
+            <div id="nrxt" class="p-sub">Total Down: 0 B</div>
           </div>
-          <div class="cc"><h4>🧠 Memory Usage</h4><canvas id="mchart" height="200"></canvas></div>
+          <div class="pulse-card" style="--p-c:var(--blue)">
+            <div class="p-hdr"><span>⬆ Upload Speed</span><span id="ntx-pct" style="font-family:monospace">0%</span></div>
+            <div id="ntx" class="p-val">0 B/s</div>
+            <div class="p-bar"><div id="ntxf" class="p-fill" style="background:var(--blue);width:0"></div></div>
+            <div id="ntxt" class="p-sub">Total Up: 0 B</div>
+          </div>
+          <div class="pulse-card" style="--p-c:var(--purple)">
+            <div class="p-hdr"><span>🧠 Memory Pulse</span><span id="sm-pct" style="font-family:monospace">0%</span></div>
+            <div id="sm-val" class="p-val">0 MB / 0 MB</div>
+            <div class="p-bar"><div id="sm-fill" class="p-fill" style="background:var(--purple);width:0"></div></div>
+            <div id="sm-sub" class="p-sub">Node.js Heap Usage</div>
+          </div>
         </div>
       </div>
 
@@ -551,7 +616,7 @@ select.inp option{background:var(--bg2)}
         <div class="card">
           <div class="chd">🤖 Configuration</div>
           <div class="row">
-            <div class="fd"><label>Bot Name</label><input class="inp" id="stname" type="text" placeholder="Supreme MD Bot"/></div>
+            <div class="fd"><label>Bot Name</label><input class="inp" id="stname" type="text" placeholder="CHATHU MD Bot"/></div>
             <div class="fd" style="flex:0 0 110px"><label>Prefix</label><input class="inp" id="stpfx" type="text" placeholder="."/></div>
             <div class="fd"><label>Owner Number (read-only)</label><input class="inp" id="stown" type="text" disabled/></div>
           </div>
@@ -590,7 +655,7 @@ let TOK = localStorage.getItem('_spt') || '';
 let allU = [], allC = [];
 let nrx = [], ntx = [], nlbl = [];
 let nchart, mchart, sloop;
-let qrtimer = null, qrsec = 0;
+let pendingL = [];
 let sock;
 
 // ═══ API — all routes are prefixed with /bot-api here ═══
@@ -646,10 +711,10 @@ function doLogout() {
 
 // ═══ BOOT ═══
 function bootApp() {
+  if (sloop) clearInterval(sloop);
   document.getElementById('lp').style.display = 'none';
   document.getElementById('app').style.display = 'block';
   document.getElementById('sbu').textContent = localStorage.getItem('_spu') || 'admin';
-  initCharts();
   initSocket();
   initNav();
   loadStats();
@@ -672,6 +737,63 @@ function initSocket() {
     if (d.qr) showQR(d.qr);
     if (d.pairCode) showPC(d.pairCode);
   });
+  
+  // Multi-session listeners
+  sock.on('session:update', d => {
+    if (d.id === '__main__') return;
+    const el = document.querySelector(`[data-sid="${d.id}"]`);
+    if (el) {
+      if (d.status) {
+        const b = el.querySelector('.b');
+        if (b) {
+          b.textContent = d.status;
+          b.className = 'b ' + (d.status === 'Connected' ? 'bg' : d.status === 'Connecting' ? 'bo' : 'br');
+        }
+      }
+      if (d.number) {
+        const num = el.querySelector('.ssm b');
+        if (num) num.textContent = '+' + d.number;
+      }
+      if (d.platform) {
+        const pTag = el.querySelector('.ss-pv');
+        if (pTag) pTag.textContent = d.platform;
+      }
+      if (d.pairCode) {
+        let pc = el.querySelector('.ss-pc-big');
+        if (!pc) { // Create if doesn't exist
+           pc = document.createElement('div');
+           pc.className = 'ss-pc-big';
+           el.insertBefore(pc, el.querySelector('.ss-meta'));
+        }
+        pc.textContent = d.pairCode;
+      }
+    } else {
+      loadSessions();
+    }
+  });
+
+  sock.on('session:qr', d => {
+    const el = document.querySelector(`[data-sid="${d.id}"]`);
+    if (el) {
+      el.dataset.qr = d.qr;
+      const b = el.querySelector('.btn-qr');
+      if (b) { b.classList.add('bg-pulse'); b.textContent = '📡 View QR'; }
+    }
+  });
+
+  sock.on('session:paircode', d => {
+    const el = document.querySelector(`[data-sid="${d.id}"]`);
+    if (el) {
+       let pc = el.querySelector('.ss-pc-big');
+       if (!pc) {
+          pc = document.createElement('div');
+          pc.className = 'ss-pc-big';
+          el.insertBefore(pc, el.querySelector('.ss-meta'));
+       }
+       pc.textContent = d.code;
+    }
+  });
+
   sock.on('log', l => appendLog(l));
   sock.on('disconnect', () => setConn('Disconnected'));
 }
@@ -721,6 +843,10 @@ function nav(name) {
   const [t, s] = PT[name] || [name, ''];
   document.getElementById('ttl').innerHTML = `${t} <small>${s}</small>`;
   if (PL[name]) PL[name]();
+  if (name === 'logs' && pendingL.length) {
+    pendingL.forEach(l => appendLog(l, true));
+    pendingL = [];
+  }
   document.querySelector('.cnt').scrollTo(0, 0);
 }
 
@@ -731,40 +857,6 @@ function toggleSb() {
 function closeSb() {
   document.getElementById('sb').classList.remove('open');
   document.getElementById('ov').style.display = 'none';
-}
-
-// ═══ CHARTS ═══
-function initCharts() {
-  nchart = new Chart(document.getElementById('nchart').getContext('2d'), {
-    type: 'line',
-    data: { labels: [], datasets: [
-      { label:'↓ Down', data:[], borderColor:'#00ff87', backgroundColor:'rgba(0,255,135,.06)', tension:.42, fill:true, pointRadius:0, borderWidth:2 },
-      { label:'↑ Up',   data:[], borderColor:'#00d4ff', backgroundColor:'rgba(0,212,255,.04)', tension:.42, fill:true, pointRadius:0, borderWidth:2 },
-    ]},
-    options: {
-      responsive:true, maintainAspectRatio:false, animation:{duration:220},
-      scales: {
-        x:{display:false},
-        y:{grid:{color:'rgba(255,255,255,.04)',lineWidth:.7},ticks:{color:'#334155',font:{size:10},callback:v=>fmtBps(v)}}
-      },
-      plugins:{
-        legend:{labels:{color:'#7d8fa8',boxWidth:9,font:{size:10},padding:10}},
-        tooltip:{callbacks:{label:c=>c.dataset.label+': '+fmtBps(c.parsed.y)}}
-      }
-    }
-  });
-  mchart = new Chart(document.getElementById('mchart').getContext('2d'), {
-    type: 'doughnut',
-    data: { labels:['Used','Free'], datasets:[{data:[0,1],backgroundColor:['rgba(0,212,255,.85)','rgba(255,255,255,.05)'],borderWidth:0,hoverOffset:5}] },
-    options: {
-      responsive:true, maintainAspectRatio:false, cutout:'75%',
-      plugins:{
-        legend:{display:false},
-        tooltip:{callbacks:{label:c=>`${c.label}: ${c.parsed} MB`}},
-        title:{display:true,text:'0% Used',color:'#7d8fa8',font:{size:12},padding:{top:8}}
-      }
-    }
-  });
 }
 
 // ═══ FORMAT ═══
@@ -801,25 +893,27 @@ async function loadStats() {
   g('spl').textContent = d.platform ? d.platform[0].toUpperCase() + d.platform.slice(1) : '—';
   g('snv').textContent = d.nodeVersion || '';
 
-  if (mchart) {
-    const used = d.memUsed || 0, total = d.memTotal || 1;
-    mchart.data.datasets[0].data = [used, Math.max(0, total - used)];
-    mchart.options.plugins.title.text = `${d.memPercent||0}% — ${used}/${total} MB`;
-    mchart.update('none');
-  }
-  if (nchart && d.net) {
-    const t = new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'});
-    nlbl.push(t); nrx.push(d.net.speedRxRaw || 0); ntx.push(d.net.speedTxRaw || 0);
-    if (nlbl.length > 28) { nlbl.shift(); nrx.shift(); ntx.shift(); }
-    nchart.data.labels = [...nlbl];
-    nchart.data.datasets[0].data = [...nrx];
-    nchart.data.datasets[1].data = [...ntx];
-    nchart.update('none');
-    g('nrx').textContent = d.net.speedRx || '0 B/s';
-    g('ntx').textContent = d.net.speedTx || '0 B/s';
-    g('nrxt').textContent = d.net.totalRx || '—';
-    g('ntxt').textContent = d.net.totalTx || '—';
-    g('nlbl').textContent = `↓${d.net.speedRx} · ↑${d.net.speedTx}`;
+  // Pulse v3 Updates
+  if (g('page-overview').classList.contains('active')) {
+    const net = d.net || {};
+    g('nrx').textContent = net.speedRx || '0 B/s';
+    g('ntx').textContent = net.speedTx || '0 B/s';
+    g('nrxt').textContent = 'Total Down: ' + (net.totalRx || '0 B');
+    g('ntxt').textContent = 'Total Up: ' + (net.totalTx || '0 B');
+    
+    // Percentages (scale 2MB/s for visual)
+    const rxP = Math.min(100, Math.round(((net.speedRxRaw || 0) / 2097152) * 100));
+    const txP = Math.min(100, Math.round(((net.speedTxRaw || 0) / 1048576) * 100));
+    g('nrxf').style.width = rxP + '%';
+    g('ntxf').style.width = txP + '%';
+    if(g('nrx-pct')) g('nrx-pct').textContent = rxP + '%';
+    if(g('ntx-pct')) g('ntx-pct').textContent = txP + '%';
+
+    // Memory
+    const mu = d.memUsed || 0, mt = d.memTotal || 1, mp = d.memPercent || 0;
+    g('sm-val').textContent = `${mu} MB / ${mt} MB`;
+    g('sm-fill').style.width = mp + '%';
+    g('sm-pct').textContent = mp + '%';
   }
 }
 
@@ -860,7 +954,22 @@ async function loadSessions() {
   // Route: GET /bot-api/bot/session (main bot info)
   const s = await api('GET', '/bot/session');
   if (s && !s.error) {
-    g('mci').innerHTML = `Status: <b style="color:${s.status==='Connected'?'var(--a)':'var(--orange)'}">${s.status||'—'}</b> &nbsp;·&nbsp; Number: <b>${s.number||'Not connected'}</b> &nbsp;·&nbsp; Platform: ${s.platform||'—'}`;
+    const isReady = s.status === 'Connected';
+    g('mci').innerHTML = `
+      <div class="flex jcsb aic">
+        <div>
+          Status: <b style="color:${isReady?'var(--a)':'var(--orange)'}">${s.status||'—'}</b> &nbsp;·&nbsp; 
+          Number: <b>${s.number?'+'+s.number:'Not connected'}</b>
+        </div>
+        ${isReady ? '<button class="btn btn-d btn-sm" onclick="mainLogout()">Logout Bot</button>' : ''}
+      </div>`;
+    if (isReady) {
+      g('qrpan').style.display = 'none';
+      g('qrhi').style.display = 'block';
+      g('qtx').innerHTML = '<span style="color:var(--a);font-weight:700">✅ BOT IS ALREADY LINKED</span><br><small style="opacity:0.7">No QR needed. Use the logout button if you wish to change accounts.</small>';
+    } else {
+      g('qrpan').style.display = 'block';
+    }
   }
   // Route: GET /bot-api/sessions
   const list = await api('GET', '/sessions');
@@ -868,16 +977,36 @@ async function loadSessions() {
   const multi = list.filter(x => !x.isMain);
   const grid = g('ssg');
   if (!multi.length) { grid.innerHTML = '<div class="tm tsm">No extra sessions. Add one above.</div>'; return; }
-  grid.innerHTML = multi.map(s => `
-    <div class="ssc">
-      <div class="ssn">${s.label || s.id}</div>
-      <div class="ssm">${s.number || 'No number linked'}</div>
-      <div class="mb2"><span class="b ${s.status==='Connected'?'bg':'bo'}">${s.status||'Unknown'}</span></div>
-      <div class="flex g2">
-        <button class="btn btn-s btn-sm" style="flex:1" onclick="getSessQR('${s.id}')">QR</button>
-        <button class="btn btn-d btn-sm" style="flex:1" onclick="removeSess('${s.id}')">Remove</button>
+  grid.innerHTML = multi.map(s => {
+    const isConn = s.status === 'Connected';
+    const hasPC = s.pairCode && !isConn;
+    const hasQR = s.qrAvailable && !isConn;
+    const sId = s.id;
+    return `
+    <div class="ssc shadow-sm" data-sid="${sId}" data-qr="${s.qrAvailable||''}">
+      <div class="ssn">
+        <span>${s.label || sId}</span>
+        <span class="b ${isConn?'bg':s.status==='Connecting'?'bo':'br'}" style="font-size:0.55rem">${s.status||'Offline'}</span>
       </div>
-    </div>`).join('');
+      <div class="ssm">
+        <span class="ic">📱</span> <b>${s.number ? '+' + s.number : 'Unlinked'}</b>
+      </div>
+      
+      ${hasPC ? `<div class="ss-pc-big" id="pc-${sId}">${s.pairCode}</div>` : ''}
+      
+      <div class="ss-meta">
+        <div class="ss-p"><span class="ss-pl">Platform</span><span class="ss-pv">${s.platform||'WhatsApp'}</span></div>
+        <div class="ss-p"><span class="ss-pl">Active</span><span class="ss-pv">${isConn?'Yes':'No'}</span></div>
+      </div>
+
+      <div class="flex g2 mta">
+        <button class="btn btn-s btn-sm btn-qr ${hasQR?'bg-pulse':''} shadow-sm" style="flex:1" onclick="getSessQR('${sId}')">
+          ${hasQR ? '📡 View QR' : '🔗 QR Code'}
+        </button>
+        <button class="btn btn-d btn-sm shadow-sm" style="flex:1" onclick="removeSess('${sId}')">Remove</button>
+      </div>
+    </div>`;
+  }).join('');
 }
 
 async function fetchQR() {
@@ -888,10 +1017,15 @@ async function fetchQR() {
   g('qtx').textContent = 'Generating QR...';
   // Route: GET /bot-api/sessions/__main__/qr
   const d = await api('GET', '/sessions/__main__/qr');
-  if (d && d.qrCode) showQR(d.qrCode);
-  else {
+  if (d && d.qrCode) {
+    showQR(d.qrCode);
+  } else {
     g('qrhi').style.display = 'block';
-    g('qtx').textContent = d?.error || 'No QR — bot may already be connected';
+    if (d?.error?.includes('Connected')) {
+      g('qtx').innerHTML = '<span style="color:var(--a);font-weight:700">✅ BOT IS ALREADY LINKED</span><br><small style="opacity:0.7">Your bot is active. No QR needed.</small>';
+    } else {
+      g('qtx').textContent = d?.error || 'QR not ready yet. Please wait or refresh ↺';
+    }
     toast(d?.error || 'No QR available', 'info');
   }
 }
@@ -914,9 +1048,12 @@ async function mainLogout() {
 }
 
 async function createSess() {
-  const id = g('nsid').value.trim();
+  let id = g('nsid').value.trim().replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_-]/g, '');
   const phone = g('nsph').value.trim();
-  if (!id) return toast('Enter a session ID', 'warn');
+  if (!id || !/^[a-zA-Z0-9_-]{2,30}$/.test(id)) {
+    return toast('Invalid session ID. Use 2-30 characters (A-Z, 0-9, _, -) and no spaces.', 'warn');
+  }
+  g('nsid').value = id;
   // Route: POST /bot-api/sessions
   const d = await api('POST', '/sessions', { id, pairMode: !!phone, phone });
   if (d?.error) toast(d.error, 'error');
@@ -924,12 +1061,24 @@ async function createSess() {
 }
 
 async function getSessQR(id) {
-  // Route: GET /bot-api/sessions/:id/qr
-  const d = await api('GET', '/sessions/' + id + '/qr');
-  if (d?.qrCode) {
-    const w = window.open('', '_blank', 'width=300,height=320');
-    w.document.write(`<body style="margin:0;background:#050810"><img src="${d.qrCode}" style="width:300px"/></body>`);
-  } else toast(d?.error || 'No QR', 'error');
+  const el = document.querySelector(`[data-sid="${id}"]`);
+  let qr = el?.dataset?.qr;
+  
+  if (!qr || qr === "true") { // If we don't have the literal dataURL, fetch it
+    // Route: GET /bot-api/sessions/:id/qr
+    const d = await api('GET', '/sessions/' + id + '/qr');
+    if (d?.qrCode) qr = d.qrCode;
+  }
+  
+  if (qr && qr.startsWith('data:image')) {
+    const w = window.open('', '_blank', 'width=350,height=370');
+    w.document.write(`
+      <body style="margin:0;background:#03050a;color:#f0f4f8;font-family:sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh">
+        <h3 style="margin-bottom:15px;font-size:16px">${id} — Scan QR</h3>
+        <img src="${qr}" style="width:300px;border-radius:12px;border:2px solid #00f2ff;box-shadow:0 0 20px rgba(0,242,255,0.2)"/>
+        <p style="margin-top:15px;font-size:12px;opacity:0.7">WhatsApp > Linked Devices > Link a Device</p>
+      </body>`);
+  } else toast('No QR available. Try refresh or use Pair Code.', 'error');
 }
 
 async function removeSess(id) {
@@ -1161,14 +1310,23 @@ async function loadEco() {
     <tr>
       <td class="mono">${u.number||'—'}</td>
       <td>💰 <b>${u.balance||0}</b></td>
-      <td><span class="b ${u.premium?'by':'bgr'}">${u.premium?'⭐ Premium':'Free'}</span></td>
+      <td><span class="b ${u.premium?'by':'bgr'}" onclick="togglePr('${u.jid}')" style="cursor:pointer">${u.premium?'⭐ Premium':'Free'}</span></td>
       <td class="tm">${u.wins||0}</td>
       <td><div class="flex g2 ic">
-        <input class="inp txs" id="eb${(u.jid||'').replace(/\W/g,'')}" type="number" value="${u.balance||0}" style="width:85px;padding:5px 8px"/>
-        <button class="btn btn-p btn-xs" onclick="setBal('${u.jid}')">Set</button>
+        <input class="inp txs" id="eb${(u.jid||'').replace(/\W/g,'')}" type="number" value="${u.balance||0}" style="width:75px;padding:5px 8px"/>
+        <button class="ib e" onclick="setBal('${u.jid}')">💾</button>
+        <button class="ib ${u.banned?'y':'warn'}" onclick="toggleBan('${u.jid}')">${u.banned?'🔓':'🚫'}</button>
       </div></td>
     </tr>`).join('')
-  : '<tr class="er"><td colspan="5">No economy data</td></tr>';
+  : '<tr class="er"><td colspan="5">No users found</td></tr>';
+}
+async function togglePr(jid) {
+  const d = await api('POST', '/users/' + encodeURIComponent(jid) + '/premium');
+  if (d?.ok) { toast('Premium updated', 'success'); loadEco(); }
+}
+async function toggleBan(jid) {
+  const d = await api('POST', '/users/' + encodeURIComponent(jid) + '/ban');
+  if (d?.ok) { toast('Status updated', 'success'); loadEco(); }
 }
 async function setBal(jid) {
   const el = g('eb' + (jid || '').replace(/\W/g, ''));
@@ -1238,9 +1396,15 @@ async function loadLogs() {
   // API returns logs reversed (newest first), reverse again for chronological display
   if (!list.error) [...list].reverse().forEach(l => appendLog(l));
 }
-function appendLog(l) {
+function appendLog(l, force = false) {
   const box = g('logbox');
   if (!box) return;
+  const isV = box.offsetParent !== null;
+  if (!isV && !force) {
+    pendingL.push(l);
+    if (pendingL.length > 500) pendingL.shift();
+    return;
+  }
   const lw = (l || '').toLowerCase();
   const cls = lw.includes('error') || lw.includes('❌') ? 'er'
     : lw.includes('warn') ? 'wn'
@@ -1253,10 +1417,16 @@ function appendLog(l) {
   el.className = 'le ' + cls;
   el.innerHTML = `<span class="lt">${t}</span><span class="lm">${l}</span>`;
   box.appendChild(el);
-  box.scrollTop = box.scrollHeight;
+  const isAtBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 120;
+  if (isV && isAtBottom) box.scrollTop = box.scrollHeight;
   while (box.children.length > 500) box.removeChild(box.firstChild);
 }
-function clearLogs() { g('logbox').innerHTML = ''; }
+async function clearLogs() {
+  if (!confirm('Clear all logs?')) return;
+  await api('DELETE', '/logs');
+  g('logbox').innerHTML = '';
+  toast('Logs cleared', 'success');
+}
 </script>
 </body>
 </html>

@@ -18,6 +18,7 @@ const db = require('./lib/db');
 const BAD_WORDS = ['fuck', 'shit', 'bitch', 'asshole', 'bastard', 'cunt', 'dick', 'pussy', 'whore', 'nigger'];
 
 const messageStore = [];
+let lastConnectTime = Math.floor(Date.now() / 1000);
 function cacheMsg(msg) {
     messageStore.push(msg);
     if (messageStore.length > 100) messageStore.shift();
@@ -35,7 +36,7 @@ async function startBot() {
     const { state, saveCreds } = await useMultiFileAuthState(SESSION_DIR);
     const { version } = await fetchLatestBaileysVersion();
 
-    logger(`Starting Supreme Bot (Baileys v${version.join('.')})`);
+    logger(`Starting CHATHU MD (Baileys v${version.join('.')})`);
     appState.setStatus('Connecting');
     const io = getIO();
     if (io) io.emit('update', { status: 'Connecting' });
@@ -79,8 +80,17 @@ async function startBot() {
                 
                 // Specific handling for common DisconnectReasons
                 if (statusCode === DisconnectReason.loggedOut || statusCode === 401) {
-                    logger(`❌ [Main Bot] Logged Out (401). Please delete "${SESSION_DIR}" and re-scan.`);
+                    logger(`❌ [Main Bot] Logged Out (401). Clearing session and forcing re-scan...`);
                     appState.setStatus('Logged Out');
+                    try {
+                        const fs = require('fs');
+                        const path = require('path');
+                        if (fs.existsSync(SESSION_DIR)) {
+                            fs.rmSync(SESSION_DIR, { recursive: true, force: true });
+                            fs.mkdirSync(SESSION_DIR, { recursive: true });
+                        }
+                    } catch (err) { logger(`Session Clear Error: ${err.message}`); }
+                    setTimeout(() => startBot(), 3000);
                 } else if (statusCode === 440) {
                     logger('⚠️ [Main Bot] Session Replaced (440). Another instance may be running.');
                     appState.setStatus('Session Replaced');
@@ -93,17 +103,34 @@ async function startBot() {
                 appState.setNumber(null);
                 if (io) io.emit('update', { status: 'Reconnecting...' });
                 
-                const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
+                const shouldReconnect = statusCode !== DisconnectReason.loggedOut && statusCode !== 401;
                 if (shouldReconnect) setTimeout(() => startBot(), 5000);
             } else if (connection === 'open') {
                 logger('✅ [Main Bot] Connected!');
                 appState.setStatus('Connected');
                 appState.setConnectedAt(new Date().toISOString());
+                sock.startTime = Math.floor(Date.now() / 1000);
                 appState.setMainQr(null);
                 appState.setMainPairCode(null);
                 const num = sock.user?.id?.split(':')[0] || sock.user?.id || 'Unknown';
                 appState.setNumber(num);
                 if (io) io.emit('update', { status: 'Connected', number: num });
+
+                // Sync Groups to DB for Dashboard
+                const db = require('./lib/db');
+                try {
+                    if (sock.groupFetchAllFull) {
+                        const groups = await sock.groupFetchAllFull();
+                        Object.entries(groups).forEach(([jid, metadata]) => {
+                            db.update('groups', jid, {
+                                name: metadata.subject,
+                                memberCount: metadata.participants?.length || 0,
+                                sessionId: 'main'
+                            });
+                        });
+                        logger(`Synced ${Object.keys(groups).length} groups to Dashboard.`);
+                    }
+                } catch (e) { logger(`Group Sync Error: ${e.message}`); }
             }
         } catch (e) {
             logger(`Connection Update Error: ${e.message}`);
@@ -127,10 +154,65 @@ async function startBot() {
     return sock;
 }
 
+const spamMap = new Map();
+
 async function handleMessages(sock, m) {
     if (m.type !== 'notify') return;
+    const db = require('./lib/db');
+    
+    for (const msg of m.messages) {
+        if (!msg.message) continue;
+        const jid = msg.key.remoteJid;
+        const fromMe = msg.key.fromMe;
+        const pushName = msg.pushName || 'User';
+        const isGroup = jid.endsWith('@g.us');
 
-    // Check for admin restart request
+        // Update User in DB
+        if (!fromMe && jid.endsWith('@s.whatsapp.net')) {
+            db.update('users', jid, { 
+                lastSeen: new Date().toISOString(),
+                pushName: pushName,
+                number: jid.split('@')[0]
+            });
+        }
+
+        // Group Protections
+        if (isGroup && !fromMe) {
+            const group = db.get('groups', jid);
+            if (group) {
+                const text = msg.message.conversation || msg.message.extendedTextMessage?.text || '';
+                
+                // Anti-Link
+                if (group.antiLink && (text.includes('chat.whatsapp.com') || text.includes('http://') || text.includes('https://'))) {
+                    logger(`Anti-Link: Deleting link from ${pushName} in ${group.name}`);
+                    await sock.sendMessage(jid, { delete: msg.key });
+                    continue;
+                }
+
+                // Anti-Spam (detects 3+ messages in 5s)
+                if (group.antiSpam) {
+                    const now = Date.now();
+                    const userSpam = spamMap.get(msg.key.participant || jid) || [];
+                    const recent = userSpam.filter(t => now - t < 5000);
+                    recent.push(now);
+                    spamMap.set(msg.key.participant || jid, recent);
+                    if (recent.length > 4) {
+                        logger(`Anti-Spam: Skipping message from ${pushName} in ${group.name}`);
+                        continue;
+                    }
+                }
+
+                // Mute Check (If muted, we don't process commands further down)
+                if (group.isMuted) {
+                    const prefix = db.getSetting('prefix') || '.';
+                    if (text.startsWith(prefix)) {
+                        logger(`Mute: Ignoring command in ${group.name}`);
+                        continue;
+                    }
+                }
+            }
+        }
+    }
     if (appState.isRestartRequested()) {
         appState.clearRestart();
         logger('Admin restart requested — reconnecting...');
@@ -141,6 +223,11 @@ async function handleMessages(sock, m) {
 
     for (const msg of m.messages) {
         if (!msg.message) continue;
+
+        // Skip messages older than current connection (Anti-Spam)
+        const msgTime = msg.messageTimestamp || msg.message?.messageTimestamp || 0;
+        if (sock.startTime && msgTime < sock.startTime) continue;
+
         const from = msg.key.remoteJid;
 
         if (from === 'status@broadcast') {
@@ -197,17 +284,13 @@ async function handleMessages(sock, m) {
         if (AUTO_READ && text.startsWith(PREFIX)) await sock.readMessages([msg.key]).catch(() => {});
         if (AUTO_TYPING && text.startsWith(PREFIX)) await sock.sendPresenceUpdate('composing', from).catch(() => {});
 
-        let isCommand = await handleCommand(sock, msg, from, text);
-        if (!isCommand) {
-            const { processMessage } = require('./commands');
-            isCommand = await processMessage(sock, msg, from, text);
-        }
+        const isCommand = await handleCommand(sock, msg, from, text);
 
         if (!isCommand && !msg.key.fromMe) {
             const lower = text.toLowerCase().trim();
             if (lower === 'hi' || lower === 'hello' || lower === 'hey') {
                 await sock.sendMessage(from, {
-                    text: `Hello! 👋 Welcome, Master!\n\nType *${PREFIX}menu* to see all my features or *${PREFIX}help* for a quick guide. 🚀`
+                    text: `Hello! 👋 Welcome, Master!\n\nType *${PREFIX}menu* to see all my features or *${PREFIX}help* for a quick guide. 🚀\n\n- Powered by *CHATHU MD*`
                 });
             }
         }

@@ -48,7 +48,7 @@ Then open `http://localhost:5000` in your browser and log in.
 | `ADMIN_USER` | `admin` | Dashboard login username |
 | `ADMIN_PASS` | `chathura123` | Dashboard login password |
 | `JWT_SECRET` | (set this!) | Secret for JWT tokens |
-| `BOT_NAME` | `Supreme MD Bot` | Display name |
+| `BOT_NAME` | `CHATHU MD Bot` | Display name |
 | `PREFIX` | `.` | Command prefix character |
 | `PREMIUM_CODE` | `SUPREME2026` | Code users enter to unlock premium |
 

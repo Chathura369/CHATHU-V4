@@ -1,12 +1,5 @@
 {
-  "users": {
-    "139273575596047@lid": {
-      "balance": 0,
-      "lastDaily": 1773858902138,
-      "items": [],
-      "wins": 0
-    }
-  },
+  "users": {},
   "groups": {},
   "settings": {
     "nsfw": false,
@@ -18,29 +11,77 @@
     "autoTyping": true,
     "nsfwEnabled": true
   },
-  "autoReply": [
-    {
-      "id": "1774331231374",
-      "trigger": "Hi",
-      "response": "Bijja",
-      "matchType": "regex",
-      "caseSensitive": true,
-      "groupsOnly": false,
-      "pmOnly": true,
+  "autoReply": [],
+  "scheduler": [],
+  "commandSettings": {
+    "download": {
+      "enabled": true
+    },
+    "ai": {
+      "enabled": true
+    },
+    "delete": {
+      "enabled": true
+    },
+    "economy": {
+      "enabled": true
+    },
+    "fun": {
+      "enabled": true
+    },
+    "group": {
+      "enabled": true
+    },
+    "menu": {
+      "enabled": true
+    },
+    "nsfw": {
+      "enabled": true
+    },
+    "owner": {
+      "enabled": true
+    },
+    "premium": {
+      "enabled": true
+    },
+    "search": {
+      "enabled": true
+    },
+    "sticker": {
+      "enabled": true
+    },
+    "ping": {
+      "enabled": true
+    },
+    "balance": {
+      "enabled": true
+    },
+    "joke": {
+      "enabled": true
+    },
+    "kick": {
+      "enabled": true
+    },
+    "reload": {
+      "enabled": true
+    },
+    "play": {
+      "enabled": true
+    },
+    "steal": {
       "enabled": true
     }
-  ],
-  "scheduler": [
+  },
+  "broadcastHistory": [
     {
-      "id": "1774334673790",
-      "message": "Hi",
-      "sessionId": "main",
-      "targetType": "groups",
+      "id": "1774360095665",
+      "message": "kl;",
       "targets": [],
-      "scheduledAt": "2026-03-24T10:48:00.000Z",
-      "sent": false,
-      "sentAt": null,
-      "createdAt": "2026-03-24T06:44:33.790Z"
+      "sent": 0,
+      "failed": 0,
+      "total": 0,
+      "sentAt": "2026-03-24T13:48:15.665Z",
+      "status": "success"
     }
   ]
 }
