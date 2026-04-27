@@ -43,7 +43,22 @@ function saveMetadata(id, entry) {
             autoTyping: entry.autoTyping,
             autoReactStatus: entry.autoReactStatus,
             nsfwEnabled: entry.nsfwEnabled,
-            autoReply: entry.autoReply
+            autoReply: entry.autoReply,
+            alwaysOnline: entry.alwaysOnline || false,
+            antiCall: entry.antiCall || false,
+            antiDelete: entry.antiDelete || false,
+            autoBio: entry.autoBio || false,
+            alwaysRecording: entry.alwaysRecording || false,
+            autoViewStatus: entry.autoViewStatus || false,
+            antiGroupJoin: entry.antiGroupJoin || false,
+            aiAutoReply: entry.aiAutoReply || false,
+            aiAutoVoice: entry.aiAutoVoice || false,
+            aiAutoPersona: entry.aiAutoPersona || null,
+            aiAutoLang: entry.aiAutoLang || null,
+            aiGroupMode: entry.aiGroupMode || null,
+            aiSystemInstruction: entry.aiSystemInstruction || '',
+            aiMaxWords: entry.aiMaxWords || null,
+            mentionReply: entry.mentionReply || ''
         };
         fs.writeFileSync(metadataPath(id), JSON.stringify(data, null, 2));
     } catch (e) {
@@ -79,6 +94,21 @@ function sessionSnapshot(id, s) {
         autoReactStatus: s.autoReactStatus,
         nsfwEnabled: s.nsfwEnabled,
         autoReply: s.autoReply,
+        alwaysOnline: s.alwaysOnline || false,
+        antiCall: s.antiCall || false,
+        antiDelete: s.antiDelete || false,
+        autoBio: s.autoBio || false,
+        alwaysRecording: s.alwaysRecording || false,
+        autoViewStatus: s.autoViewStatus || false,
+        antiGroupJoin: s.antiGroupJoin || false,
+        aiAutoReply: s.aiAutoReply || false,
+        aiAutoVoice: s.aiAutoVoice || false,
+        aiAutoPersona: s.aiAutoPersona || null,
+        aiAutoLang: s.aiAutoLang || null,
+        aiGroupMode: s.aiGroupMode || null,
+        aiSystemInstruction: s.aiSystemInstruction || '',
+        aiMaxWords: s.aiMaxWords || null,
+        mentionReply: s.mentionReply || '',
     };
 }
 
@@ -541,6 +571,21 @@ async function updateSessionSettings(id, settings) {
     if (settings.autoReactStatus !== undefined) entry.autoReactStatus = settings.autoReactStatus === null ? null : !!settings.autoReactStatus;
     if (settings.nsfwEnabled !== undefined) entry.nsfwEnabled = settings.nsfwEnabled === null ? null : !!settings.nsfwEnabled;
     if (settings.autoReply !== undefined) entry.autoReply = settings.autoReply === null ? null : !!settings.autoReply;
+    if (settings.alwaysOnline !== undefined) entry.alwaysOnline = !!settings.alwaysOnline;
+    if (settings.antiCall !== undefined) entry.antiCall = !!settings.antiCall;
+    if (settings.antiDelete !== undefined) entry.antiDelete = settings.antiDelete;
+    if (settings.autoBio !== undefined) entry.autoBio = !!settings.autoBio;
+    if (settings.alwaysRecording !== undefined) entry.alwaysRecording = !!settings.alwaysRecording;
+    if (settings.autoViewStatus !== undefined) entry.autoViewStatus = !!settings.autoViewStatus;
+    if (settings.antiGroupJoin !== undefined) entry.antiGroupJoin = !!settings.antiGroupJoin;
+    if (settings.aiAutoReply !== undefined) entry.aiAutoReply = !!settings.aiAutoReply;
+    if (settings.aiAutoVoice !== undefined) entry.aiAutoVoice = !!settings.aiAutoVoice;
+    if (settings.aiAutoPersona !== undefined) entry.aiAutoPersona = String(settings.aiAutoPersona);
+    if (settings.aiAutoLang !== undefined) entry.aiAutoLang = String(settings.aiAutoLang);
+    if (settings.aiGroupMode !== undefined) entry.aiGroupMode = String(settings.aiGroupMode);
+    if (settings.aiSystemInstruction !== undefined) entry.aiSystemInstruction = String(settings.aiSystemInstruction);
+    if (settings.aiMaxWords !== undefined) entry.aiMaxWords = parseInt(settings.aiMaxWords) || 30;
+    if (settings.mentionReply !== undefined) entry.mentionReply = String(settings.mentionReply);
 
     saveMetadata(id, entry);
     const session = sessionSnapshot(id, entry);
