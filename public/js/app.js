@@ -1233,6 +1233,92 @@
       setChecked('advBotNsfw', effNsfw);
       setChecked('advBotAutoReply', effAutoReply);
 
+      // Pro / AI feature toggles (per-bot, falling back to global settings)
+      const proKeys = [
+        ['alwaysOnline', 'advBotAlwaysOnline', 'generalProAlwaysOnline'],
+        ['antiCall', 'advBotAntiCall', 'generalProAntiCall'],
+        ['antiDelete', 'advBotAntiDelete', 'generalProAntiDelete'],
+        ['autoBio', 'advBotAutoBio', 'generalProAutoBio'],
+        ['alwaysRecording', 'advBotAlwaysRecording', 'generalProAutoRecording'],
+        ['antiGroupJoin', 'advBotAntiGroupJoin', 'generalProAntiGroupJoin'],
+        ['autoViewStatus', 'advBotAutoViewStatus', null],
+      ];
+      proKeys.forEach(([k, inputId, statusId]) => {
+        let v = (s[k] !== null && s[k] !== undefined) ? s[k] : (g[k] === true);
+        // antiDelete may be stored as an object {enabled:bool, filters:{}} — coerce.
+        if (k === 'antiDelete' && typeof v === 'object' && v !== null) v = v.enabled === true;
+        setChecked(inputId, !!v);
+        if (statusId) setText(statusId, v ? '✓ Enabled' : '✗ Disabled');
+      });
+
+      const aiAutoReply = (s.aiAutoReply !== null && s.aiAutoReply !== undefined) ? s.aiAutoReply : (g.aiAutoReply === true);
+      const aiAutoVoice = (s.aiAutoVoice !== null && s.aiAutoVoice !== undefined) ? s.aiAutoVoice : (g.aiAutoVoice === true);
+      const aiPersona = s.aiAutoPersona || g.aiAutoPersona || 'friendly';
+      const aiLang = s.aiAutoLang || g.aiAutoLang || 'auto';
+      const aiGroupMode = s.aiGroupMode || g.aiGroupMode || 'mention';
+      const aiMaxWords = s.aiMaxWords || g.aiMaxWords || 60;
+      setChecked('advBotAiAutoReply', aiAutoReply);
+      setChecked('advBotAiAutoVoice', aiAutoVoice);
+      const personaSel = document.getElementById('advBotAiPersona');
+      if (personaSel) personaSel.value = aiPersona;
+      const langSel = document.getElementById('advBotAiLang');
+      if (langSel) langSel.value = aiLang;
+      const groupModeSel = document.getElementById('advBotAiGroupMode');
+      if (groupModeSel) groupModeSel.value = aiGroupMode;
+      const maxWordsInput = document.getElementById('advBotAiMaxWords');
+      if (maxWordsInput) maxWordsInput.value = aiMaxWords;
+      const sysInstr = document.getElementById('advBotAiSystemInstruction');
+      if (sysInstr) sysInstr.value = s.aiSystemInstruction || g.aiSystemInstruction || '';
+      const mentionReply = document.getElementById('advBotMentionReply');
+      if (mentionReply) mentionReply.value = s.mentionReply || g.mentionReply || '';
+
+      setText('generalProAlwaysOnline', s.alwaysOnline ? '✓ Enabled' : '✗ Disabled');
+      setText('generalAiAutoReply', aiAutoReply ? '✓ Enabled' : '✗ Disabled');
+      setText('generalAiAutoVoice', aiAutoVoice ? '✓ Enabled' : '✗ Disabled');
+      setText('generalAiPersona', aiPersona);
+      setText('generalAiLang', aiLang);
+
+      // Pro feature health metrics (best-effort placeholders)
+      setText('healthProMsgRecovered', s.metricsMsgRecovered || 0);
+      setText('healthProCallsBlocked', s.metricsCallsBlocked || 0);
+      setText('healthProStatusViews', s.metricsStatusViews || 0);
+      setText('healthProBioUpdates', s.metricsBioUpdates || 0);
+      setText('healthAiResponses', s.metricsAiResponses || 0);
+      setText('healthAiVoiceMessages', s.metricsAiVoiceMessages || 0);
+      setText('healthAiAvgResponse', s.metricsAiAvgResponse ? `${s.metricsAiAvgResponse}ms` : '0ms');
+      setText('healthAiAccuracy', s.metricsAiAccuracy || '--');
+
+      // Anti-Delete capture matrix
+      const ad = (typeof s.antiDelete === 'object' && s.antiDelete) ? s.antiDelete : (g.antiDelete || {});
+      const adFilters = (ad && ad.filters) || {};
+      setChecked('advAdFilterText', !!adFilters.text);
+      setChecked('advAdFilterImage', !!adFilters.image);
+      setChecked('advAdFilterVideo', !!adFilters.video);
+      setChecked('advAdFilterAudio', !!adFilters.audio);
+      setChecked('advAdFilterSticker', !!adFilters.sticker);
+      setChecked('advAdFilterDoc', !!adFilters.doc);
+      const adTarget = ad && ad.target === 'owner' ? 'owner' : 'chat';
+      const chatCard = document.getElementById('adTargetChat');
+      const ownerCard = document.getElementById('adTargetOwner');
+      if (chatCard) chatCard.classList.toggle('active', adTarget === 'chat');
+      if (ownerCard) ownerCard.classList.toggle('active', adTarget === 'owner');
+      setText('adStatSaved', s.metricsAntiDeleteSaved || 0);
+      setText('adStatUptime', s.metricsAntiDeleteUptime || '0h 0m');
+
+      // Health → Enabled Modules list
+      const healthModules = document.getElementById('healthModulesList');
+      if (healthModules) {
+        const mods = getAdvancedModules();
+        if (!mods.length) {
+          healthModules.innerHTML = '<div class="muted text-xs">No modules registered yet</div>';
+        } else {
+          healthModules.innerHTML = mods.map((mod) => {
+            const enabled = !disabled.includes(mod.key);
+            return `<div class="row" style="padding:8px 12px;border:1px solid rgba(255,255,255,0.06);border-radius:10px;margin-bottom:6px;justify-content:space-between"><span>${escapeHtml(mod.label)}</span><span class="badge ${enabled ? 'green' : 'red'}">${enabled ? 'ON' : 'OFF'}</span></div>`;
+          }).join('');
+        }
+      }
+
       const grid = document.getElementById('advModuleGrid');
       if (!grid) return;
       grid.innerHTML = getAdvancedModules().map((mod) => {
@@ -1350,6 +1436,34 @@
         if (s) syncBotSettingsModal(s);
         toast(e.message, 'error');
       }
+    }
+
+    function setAdTarget(target) {
+      const id = State.activeConfigSession;
+      if (!id) return;
+      const s = (State.data.sessions || []).find(x => x.id === id);
+      const current = (s && typeof s.antiDelete === 'object' && s.antiDelete) ? { ...s.antiDelete } : {};
+      current.target = (target === 'owner') ? 'owner' : 'chat';
+      const chatCard = document.getElementById('adTargetChat');
+      const ownerCard = document.getElementById('adTargetOwner');
+      if (chatCard) chatCard.classList.toggle('active', current.target === 'chat');
+      if (ownerCard) ownerCard.classList.toggle('active', current.target === 'owner');
+      applyBotSetting('antiDelete', current);
+    }
+
+    function applyAntiDeleteConfig(group, key, value) {
+      const id = State.activeConfigSession;
+      if (!id) return;
+      const s = (State.data.sessions || []).find(x => x.id === id);
+      const current = (s && typeof s.antiDelete === 'object' && s.antiDelete) ? { ...s.antiDelete } : {};
+      if (group === 'filters') {
+        current.filters = { ...(current.filters || {}), [key]: !!value };
+      } else if (group === 'enabled') {
+        current.enabled = !!value;
+      } else {
+        current[group] = value;
+      }
+      applyBotSetting('antiDelete', current);
     }
 
     async function applyGlobalBotSetting(key, val, inputEl) {

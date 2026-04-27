@@ -22,7 +22,7 @@
             </svg></div>
           <div class="meta">
             <div class="name">Chathu MD</div>
-            <div class="ver">v2.1 - Multi-Device</div>
+            <div class="ver">v3.0 - Multi-Device</div>
           </div>
         </div>
 
@@ -262,9 +262,30 @@
       </div>
       <div class="bot-settings-shell">
         <div class="bot-settings-sidebar">
-          <div class="bot-nav-item active" id="botNavItem-general" onclick="switchBotTab('general')">General</div>
-          <div class="bot-nav-item" id="botNavItem-health" onclick="switchBotTab('health')">Health</div>
-          <div class="bot-nav-item" id="botNavItem-actions" onclick="switchBotTab('actions')">Actions</div>
+          <div class="bot-nav-item active" id="botNavItem-general" onclick="switchBotTab('general')">
+            <i class="ic" style="-webkit-mask-image:url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22 fill=%22none%22 stroke=%22currentColor%22 stroke-width=%222%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22><rect x=%223%22 y=%223%22 width=%2218%22 height=%2218%22 rx=%222%22 ry=%222%22/><line x1=%223%22 y1=%229%22 x2=%2221%22 y2=%229%22/><line x1=%229%22 y1=%2221%22 x2=%229%22 y2=%229%22/></svg>')"></i>
+            General
+          </div>
+          <div class="bot-nav-item" id="botNavItem-health" onclick="switchBotTab('health')">
+            <i class="ic" style="-webkit-mask-image:url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22 fill=%22none%22 stroke=%22currentColor%22 stroke-width=%222%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22><path d=%22M22 12h-4l-3 9L9 3l-3 9H2%22/></svg>')"></i>
+            Health
+          </div>
+          <div class="bot-nav-item" id="botNavItem-ai" onclick="switchBotTab('ai')">
+            <i class="ic" style="-webkit-mask-image:url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22 fill=%22none%22 stroke=%22currentColor%22 stroke-width=%222%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22><path d=%22M12 2a10 10 0 1 0 10 10H12V2z%22/><path d=%22M12 2a10 10 0 0 1 10 10h-2a8 8 0 0 0-8-8V2z%22/></svg>')"></i>
+            AI & Automation
+          </div>
+          <div class="bot-nav-item" id="botNavItem-modules" onclick="switchBotTab('modules')">
+            <i class="ic" style="-webkit-mask-image:url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22 fill=%22none%22 stroke=%22currentColor%22 stroke-width=%222%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22><path d=%22M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5%22/></svg>')"></i>
+            Modules
+          </div>
+          <div class="bot-nav-item" id="botNavItem-antidelete" onclick="switchBotTab('antidelete')">
+            <i class="ic" style="-webkit-mask-image:url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22 fill=%22none%22 stroke=%22currentColor%22 stroke-width=%222%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22><path d=%22M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2%22/><path d=%22M10 11v6M14 11v6%22/></svg>')"></i>
+            Anti-Delete Engine
+          </div>
+          <div class="bot-nav-item" id="botNavItem-actions" onclick="switchBotTab('actions')">
+            <i class="ic" style="-webkit-mask-image:url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22 fill=%22none%22 stroke=%22currentColor%22 stroke-width=%222%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22><path d=%22M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z%22/></svg>')"></i>
+            Actions
+          </div>
         </div>
         <div class="bot-tab-content">
           <section class="bot-tab-section" id="botTab-general">
@@ -286,18 +307,133 @@
               <div class="health-card"><div class="k">Last Sync</div><div class="v" id="generalBotLastSync">--</div></div>
                 </div>
               </div>
+              <div class="advanced-section pro-section">
+                <div class="advanced-head">
+                  <div>
+                    <h4>Pro Features Status</h4>
+                    <p>Currently active premium capabilities on this session.</p>
+                  </div>
+                  <span class="badge blue">PRO</span>
+                </div>
+                <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px">
+                  <div style="padding: 10px 12px; background: rgba(255,255,255,0.02); border-radius: 10px; border: 1px solid rgba(255,255,255,0.08)">
+                    <div style="font-size: 12px; opacity: 0.7; margin-bottom: 4px">Always Online</div>
+                    <div style="font-weight: 600; color: var(--brand)" id="generalProAlwaysOnline">✗ Disabled</div>
+                  </div>
+                  <div style="padding: 10px 12px; background: rgba(255,255,255,0.02); border-radius: 10px; border: 1px solid rgba(255,255,255,0.08)">
+                    <div style="font-size: 12px; opacity: 0.7; margin-bottom: 4px">Anti Call</div>
+                    <div style="font-weight: 600; color: var(--brand)" id="generalProAntiCall">✗ Disabled</div>
+                  </div>
+                  <div style="padding: 10px 12px; background: rgba(255,255,255,0.02); border-radius: 10px; border: 1px solid rgba(255,255,255,0.08)">
+                    <div style="font-size: 12px; opacity: 0.7; margin-bottom: 4px">Anti Delete</div>
+                    <div style="font-weight: 600; color: var(--brand)" id="generalProAntiDelete">✗ Disabled</div>
+                  </div>
+                  <div style="padding: 10px 12px; background: rgba(255,255,255,0.02); border-radius: 10px; border: 1px solid rgba(255,255,255,0.08)">
+                    <div style="font-size: 12px; opacity: 0.7; margin-bottom: 4px">Auto Bio</div>
+                    <div style="font-weight: 600; color: var(--brand)" id="generalProAutoBio">✗ Disabled</div>
+                  </div>
+                  <div style="padding: 10px 12px; background: rgba(255,255,255,0.02); border-radius: 10px; border: 1px solid rgba(255,255,255,0.08)">
+                    <div style="font-size: 12px; opacity: 0.7; margin-bottom: 4px">Auto Recording</div>
+                    <div style="font-weight: 600; color: var(--brand)" id="generalProAutoRecording">✗ Disabled</div>
+                  </div>
+                  <div style="padding: 10px 12px; background: rgba(255,255,255,0.02); border-radius: 10px; border: 1px solid rgba(255,255,255,0.08)">
+                    <div style="font-size: 12px; opacity: 0.7; margin-bottom: 4px">Anti Group Join</div>
+                    <div style="font-weight: 600; color: var(--brand)" id="generalProAntiGroupJoin">✗ Disabled</div>
+                  </div>
+                </div>
+              </div>
+              <div class="advanced-section pro-section">
+                <div class="advanced-head">
+                  <div>
+                    <h4>AI Features Status</h4>
+                    <p>Intelligent automation capabilities and configuration.</p>
+                  </div>
+                  <span class="badge blue">PRO</span>
+                </div>
+                <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px">
+                  <div style="padding: 10px 12px; background: rgba(255,255,255,0.02); border-radius: 10px; border: 1px solid rgba(255,255,255,0.08)">
+                    <div style="font-size: 12px; opacity: 0.7; margin-bottom: 4px">AI Auto Reply</div>
+                    <div style="font-weight: 600; color: var(--brand)" id="generalAiAutoReply">✗ Disabled</div>
+                  </div>
+                  <div style="padding: 10px 12px; background: rgba(255,255,255,0.02); border-radius: 10px; border: 1px solid rgba(255,255,255,0.08)">
+                    <div style="font-size: 12px; opacity: 0.7; margin-bottom: 4px">AI Voice</div>
+                    <div style="font-weight: 600; color: var(--brand)" id="generalAiAutoVoice">✗ Disabled</div>
+                  </div>
+                  <div style="padding: 10px 12px; background: rgba(255,255,255,0.02); border-radius: 10px; border: 1px solid rgba(255,255,255,0.08)">
+                    <div style="font-size: 12px; opacity: 0.7; margin-bottom: 4px">AI Persona</div>
+                    <div style="font-weight: 600; color: var(--info)" id="generalAiPersona">--</div>
+                  </div>
+                  <div style="padding: 10px 12px; background: rgba(255,255,255,0.02); border-radius: 10px; border: 1px solid rgba(255,255,255,0.08)">
+                    <div style="font-size: 12px; opacity: 0.7; margin-bottom: 4px">AI Language</div>
+                    <div style="font-weight: 600; color: var(--info)" id="generalAiLang">--</div>
+                  </div>
+                </div>
+              </div>
             </div>
           </section>
           <section class="bot-tab-section" id="botTab-health" style="display:none">
-            <div class="health-grid">
-              <div class="health-card"><div class="k">Status</div><div class="v" id="botHealthStatus">--</div></div>
-              <div class="health-card"><div class="k">Enabled</div><div class="v" id="botHealthEnabled">--</div></div>
-              <div class="health-card"><div class="k">Uptime</div><div class="v" id="botHealthUptime">--</div></div>
-              <div class="health-card"><div class="k">Owner</div><div class="v" id="botHealthOwner">--</div></div>
-              <div class="health-card"><div class="k">Mode</div><div class="v" id="botHealthMode">--</div></div>
-              <div class="health-card"><div class="k">Last Seen</div><div class="v" id="botHealthLastSeen">--</div></div>
-              <div class="health-card"><div class="k">Session ID</div><div class="v" id="botHealthSessionId">--</div></div>
-              <div class="health-card"><div class="k">Number</div><div class="v" id="botHealthNumber">--</div></div>
+            <div class="advanced-panel">
+              <div class="advanced-section">
+                <div class="advanced-head">
+                  <div>
+                    <h4>Core Health Metrics</h4>
+                    <p>Real-time performance and connectivity status.</p>
+                  </div>
+                </div>
+                <div class="health-grid">
+                  <div class="health-card"><div class="k">Status</div><div class="v" id="botHealthStatus">--</div></div>
+                  <div class="health-card"><div class="k">Enabled</div><div class="v" id="botHealthEnabled">--</div></div>
+                  <div class="health-card"><div class="k">Uptime</div><div class="v" id="botHealthUptime">--</div></div>
+                  <div class="health-card"><div class="k">Owner</div><div class="v" id="botHealthOwner">--</div></div>
+                  <div class="health-card"><div class="k">Mode</div><div class="v" id="botHealthMode">--</div></div>
+                  <div class="health-card"><div class="k">Last Seen</div><div class="v" id="botHealthLastSeen">--</div></div>
+                  <div class="health-card"><div class="k">Session ID</div><div class="v" id="botHealthSessionId">--</div></div>
+                  <div class="health-card"><div class="k">Number</div><div class="v" id="botHealthNumber">--</div></div>
+                </div>
+              </div>
+              <div class="advanced-section pro-section">
+                <div class="advanced-head">
+                  <div>
+                    <h4>Pro Feature Health</h4>
+                    <p>Performance metrics for premium features in use.</p>
+                  </div>
+                  <span class="badge blue">PRO</span>
+                </div>
+                <div class="health-grid">
+                  <div class="health-card"><div class="k">Messages Recovered</div><div class="v" id="healthProMsgRecovered">0</div></div>
+                  <div class="health-card"><div class="k">Calls Blocked</div><div class="v" id="healthProCallsBlocked">0</div></div>
+                  <div class="health-card"><div class="k">Status Views</div><div class="v" id="healthProStatusViews">0</div></div>
+                  <div class="health-card"><div class="k">Auto Bios Updated</div><div class="v" id="healthProBioUpdates">0</div></div>
+                </div>
+              </div>
+              <div class="advanced-section pro-section">
+                <div class="advanced-head">
+                  <div>
+                    <h4>AI Feature Metrics</h4>
+                    <p>Usage statistics for intelligent automation features.</p>
+                  </div>
+                  <span class="badge blue">PRO</span>
+                </div>
+                <div class="health-grid">
+                  <div class="health-card"><div class="k">AI Responses</div><div class="v" id="healthAiResponses">0</div></div>
+                  <div class="health-card"><div class="k">Voice Messages</div><div class="v" id="healthAiVoiceMessages">0</div></div>
+                  <div class="health-card"><div class="k">Avg Response</div><div class="v" id="healthAiAvgResponse">0ms</div></div>
+                  <div class="health-card"><div class="k">AI Accuracy</div><div class="v" id="healthAiAccuracy">--</div></div>
+                </div>
+              </div>
+              <div class="advanced-section pro-section">
+                <div class="advanced-head">
+                  <div>
+                    <h4>Enabled Modules</h4>
+                    <p>Module activation status for this session.</p>
+                  </div>
+                </div>
+                <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px">
+                  <div id="healthModulesList" style="grid-column: 1/-1">
+                    <!-- Modules will be populated dynamically -->
+                  </div>
+                </div>
+              </div>
             </div>
           </section>
           <section class="bot-tab-section" id="botTab-actions" style="display:none">
@@ -306,22 +442,28 @@
                 <div class="advanced-head">
                   <div>
                     <h4>Session Controls</h4>
-                    <p>Apply per-session runtime overrides and feature toggles here.</p>
+                    <p>Apply per-session runtime overrides and core bot identity settings.</p>
                   </div>
                 </div>
                 <div class="control-grid">
-              <label class="control-card"><div><div class="label">Bot Name</div><div class="desc">Display name override</div></div><input class="input" id="advBotName" onchange="applyBotSetting('name', this.value)" /></label>
-              <label class="control-card"><div><div class="label">Prefix</div><div class="desc">Command prefix override</div></div><input class="input" id="advBotPrefix" onchange="applyBotSetting('prefix', this.value)" /></label>
-              <label class="control-card"><div><div class="label">Owner</div><div class="desc">Primary owner number</div></div><input class="input" id="advBotOwner" onchange="applyBotSetting('owner', this.value)" /></label>
-              <label class="control-card"><div><div class="label">Work Mode</div><div class="desc">Runtime visibility</div></div><select class="select" id="advBotWorkMode" onchange="applyBotSetting('workMode', this.value)"><option value="public">Public</option><option value="private">Private</option><option value="self">Self</option></select></label>
-              <label class="control-card"><div><div class="label">Bot Enabled</div><div class="desc">Allow this session to respond</div></div><span class="switch"><input type="checkbox" id="advBotEnabled" onchange="applyBotSetting('botEnabled', this.checked)" /><span class="slider"></span></span></label>
-              <label class="control-card"><div><div class="label">Auto Status</div><div class="desc">View status updates</div></div><span class="switch"><input type="checkbox" id="advBotAutoStatus" onchange="applyBotSetting('autoStatus', this.checked)" /><span class="slider"></span></span></label>
-              <label class="control-card"><div><div class="label">Auto Read</div><div class="desc">Mark messages as read</div></div><span class="switch"><input type="checkbox" id="advBotAutoRead" onchange="applyBotSetting('autoRead', this.checked)" /><span class="slider"></span></span></label>
-              <label class="control-card"><div><div class="label">Auto Typing</div><div class="desc">Show typing presence</div></div><span class="switch"><input type="checkbox" id="advBotAutoTyping" onchange="applyBotSetting('autoTyping', this.checked)" /><span class="slider"></span></span></label>
-              <label class="control-card"><div><div class="label">Auto React</div><div class="desc">React to viewed status</div></div><span class="switch"><input type="checkbox" id="advBotAutoReact" onchange="applyBotSetting('autoReactStatus', this.checked)" /><span class="slider"></span></span></label>
-              <label class="control-card"><div><div class="label">NSFW</div><div class="desc">Enable NSFW commands</div></div><span class="switch"><input type="checkbox" id="advBotNsfw" onchange="applyBotSetting('nsfwEnabled', this.checked)" /><span class="slider"></span></span></label>
-              <label class="control-card"><div><div class="label">Auto Reply</div><div class="desc">Use auto-reply rules</div></div><span class="switch"><input type="checkbox" id="advBotAutoReply" onchange="applyBotSetting('autoReply', this.checked)" /><span class="slider"></span></span></label>
-              </div>
+                  <label class="control-card"><div><div class="label">Bot Name</div><div class="desc">Display name override</div></div><input class="input" id="advBotName" onchange="applyBotSetting('name', this.value)" /></label>
+                  <label class="control-card"><div><div class="label">Prefix</div><div class="desc">Command prefix override</div></div><input class="input" id="advBotPrefix" onchange="applyBotSetting('prefix', this.value)" /></label>
+                  <label class="control-card"><div><div class="label">Owner</div><div class="desc">Primary owner number</div></div><input class="input" id="advBotOwner" onchange="applyBotSetting('owner', this.value)" /></label>
+                  <label class="control-card"><div><div class="label">Work Mode</div><div class="desc">Runtime visibility</div></div><select class="select" id="advBotWorkMode" onchange="applyBotSetting('workMode', this.value)"><option value="public">Public</option><option value="private">Private</option><option value="self">Self</option></select></label>
+                  <label class="control-card"><div><div class="label">Bot Enabled</div><div class="desc">Allow this session to respond</div></div><span class="switch"><input type="checkbox" id="advBotEnabled" onchange="applyBotSetting('botEnabled', this.checked)" /><span class="slider"></span></span></label>
+                  <label class="control-card"><div><div class="label">Auto Status</div><div class="desc">View status updates</div></div><span class="switch"><input type="checkbox" id="advBotAutoStatus" onchange="applyBotSetting('autoStatus', this.checked)" /><span class="slider"></span></span></label>
+                  <label class="control-card"><div><div class="label">Auto Read</div><div class="desc">Mark messages as read</div></div><span class="switch"><input type="checkbox" id="advBotAutoRead" onchange="applyBotSetting('autoRead', this.checked)" /><span class="slider"></span></span></label>
+                  <label class="control-card"><div><div class="label">Auto Typing</div><div class="desc">Show typing presence</div></div><span class="switch"><input type="checkbox" id="advBotAutoTyping" onchange="applyBotSetting('autoTyping', this.checked)" /><span class="slider"></span></span></label>
+                  <label class="control-card"><div><div class="label">Auto React</div><div class="desc">React to viewed status</div></div><span class="switch"><input type="checkbox" id="advBotAutoReact" onchange="applyBotSetting('autoReactStatus', this.checked)" /><span class="slider"></span></span></label>
+                  <label class="control-card"><div><div class="label">NSFW</div><div class="desc">Enable NSFW commands</div></div><span class="switch"><input type="checkbox" id="advBotNsfw" onchange="applyBotSetting('nsfwEnabled', this.checked)" /><span class="slider"></span></span></label>
+                  <label class="control-card"><div><div class="label">Auto Reply</div><div class="desc">Use auto-reply rules</div></div><span class="switch"><input type="checkbox" id="advBotAutoReply" onchange="applyBotSetting('autoReply', this.checked)" /><span class="slider"></span></span></label>
+                  <label class="control-card"><div><div class="label">Always Online</div><div class="desc">Keep bot showing as online</div></div><span class="switch"><input type="checkbox" id="advBotAlwaysOnline" onchange="applyBotSetting('alwaysOnline', this.checked)" /><span class="slider"></span></span></label>
+                  <label class="control-card"><div><div class="label">Anti Call</div><div class="desc">Reject incoming calls</div></div><span class="switch"><input type="checkbox" id="advBotAntiCall" onchange="applyBotSetting('antiCall', this.checked)" /><span class="slider"></span></span></label>
+                  <label class="control-card"><div><div class="label">Auto Bio</div><div class="desc">Auto update bio with status</div></div><span class="switch"><input type="checkbox" id="advBotAutoBio" onchange="applyBotSetting('autoBio', this.checked)" /><span class="slider"></span></span></label>
+                  <label class="control-card"><div><div class="label">Always Recording</div><div class="desc">Record even after offline</div></div><span class="switch"><input type="checkbox" id="advBotAlwaysRecording" onchange="applyBotSetting('alwaysRecording', this.checked)" /><span class="slider"></span></span></label>
+                  <label class="control-card"><div><div class="label">Auto View Status</div><div class="desc">View status automatically</div></div><span class="switch"><input type="checkbox" id="advBotAutoViewStatus" onchange="applyBotSetting('autoViewStatus', this.checked)" /><span class="slider"></span></span></label>
+                  <label class="control-card"><div><div class="label">Anti Group Join</div><div class="desc">Block unknown group joins</div></div><span class="switch"><input type="checkbox" id="advBotAntiGroupJoin" onchange="applyBotSetting('antiGroupJoin', this.checked)" /><span class="slider"></span></span></label>
+                </div>
               </div>
               <div class="advanced-section danger">
                 <div class="advanced-head">
@@ -331,11 +473,163 @@
                   </div>
                 </div>
                 <div class="modal-action-grid">
-              <button class="btn btn-secondary" onclick="runBotModalAction('reconnect')">Reconnect</button>
-              <button class="btn btn-secondary" onclick="runBotModalAction('qr')">QR</button>
-              <button class="btn btn-secondary" onclick="runBotModalAction('pair')">Pair Code</button>
-              <button class="btn btn-danger" id="botActionDisconnect" onclick="runBotModalAction('disconnect')">Disconnect</button>
-              <button class="btn btn-danger" id="botActionRemove" onclick="runBotModalAction('remove')">Remove</button>
+                  <button class="btn btn-secondary" onclick="runBotModalAction('reconnect')">Reconnect</button>
+                  <button class="btn btn-secondary" onclick="runBotModalAction('qr')">QR</button>
+                  <button class="btn btn-secondary" onclick="runBotModalAction('pair')">Pair Code</button>
+                  <button class="btn btn-danger" id="botActionDisconnect" onclick="runBotModalAction('disconnect')">Disconnect</button>
+                  <button class="btn btn-danger" id="botActionRemove" onclick="runBotModalAction('remove')">Remove</button>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="bot-tab-section" id="botTab-ai" style="display:none">
+            <div class="advanced-panel">
+              <div class="advanced-section">
+                <div class="advanced-head">
+                  <div>
+                    <h4>AI Engine Overrides</h4>
+                    <p>Intelligent automation powered by state-of-the-art AI capabilities.</p>
+                  </div>
+                  <span class="badge blue">PRO</span>
+                </div>
+                <div class="control-grid">
+                  <label class="control-card"><div><div class="label">AI Auto Reply</div><div class="desc">AI-powered auto responses</div></div><span class="switch"><input type="checkbox" id="advBotAiAutoReply" onchange="applyBotSetting('aiAutoReply', this.checked)" /><span class="slider"></span></span></label>
+                  <label class="control-card"><div><div class="label">AI Auto Voice</div><div class="desc">Generate voice messages</div></div><span class="switch"><input type="checkbox" id="advBotAiAutoVoice" onchange="applyBotSetting('aiAutoVoice', this.checked)" /><span class="slider"></span></span></label>
+                  <label class="control-card"><div><div class="label">AI Persona</div><div class="desc">Bot personality style</div></div><select class="select" id="advBotAiPersona" onchange="applyBotSetting('aiAutoPersona', this.value)"><option value="friendly">Friendly</option><option value="professional">Professional</option><option value="casual">Casual</option><option value="witty">Witty</option></select></label>
+                  <label class="control-card"><div><div class="label">AI Language</div><div class="desc">Response language</div></div><select class="select" id="advBotAiLang" onchange="applyBotSetting('aiAutoLang', this.value)"><option value="auto">Auto-Detect</option><option value="en">English</option><option value="si">Sinhala</option><option value="ta">Tamil</option></select></label>
+                  <label class="control-card"><div><div class="label">AI Group Mode</div><div class="desc">Group message handling</div></div><select class="select" id="advBotAiGroupMode" onchange="applyBotSetting('aiGroupMode', this.value)"><option value="mention">Mention Only</option><option value="reply">Reply All</option><option value="silent">Silent</option></select></label>
+                  <label class="control-card"><div><div class="label">AI Max Words</div><div class="desc">Max response length</div></div><input type="number" class="input" id="advBotAiMaxWords" min="10" max="500" onchange="applyBotSetting('aiMaxWords', parseInt(this.value))" /></label>
+                </div>
+              </div>
+              <div class="advanced-section pro-section">
+                <div class="advanced-head">
+                  <div>
+                    <h4>System Instructions</h4>
+                    <p>Custom AI system prompt for intelligent responses.</p>
+                  </div>
+                </div>
+                <textarea class="input" id="advBotAiSystemInstruction" placeholder="Enter custom system instructions for AI..." style="min-height: 120px; resize: vertical; font-family: 'JetBrains Mono', monospace; font-size: 12px" onchange="applyBotSetting('aiSystemInstruction', this.value)"></textarea>
+              </div>
+              <div class="advanced-section pro-section">
+                <div class="advanced-head">
+                  <div>
+                    <h4>Custom Mention Reply</h4>
+                    <p>Auto-response when bot is mentioned in groups.</p>
+                  </div>
+                </div>
+                <textarea class="input" id="advBotMentionReply" placeholder="Enter custom response for mentions..." style="min-height: 80px; resize: vertical" onchange="applyBotSetting('mentionReply', this.value)"></textarea>
+              </div>
+            </div>
+          </section>
+
+          <section class="bot-tab-section" id="botTab-modules" style="display:none">
+            <div class="advanced-panel">
+              <div class="advanced-section">
+                <div class="advanced-head">
+                  <div>
+                    <h4>Module Orchestration</h4>
+                    <p>Enable or disable specific bot command modules for this session.</p>
+                  </div>
+                  <span class="badge blue">PRO</span>
+                </div>
+                <div id="advModuleGrid" class="control-grid">
+                  <!-- Modules will be populated dynamically -->
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="bot-tab-section" id="botTab-antidelete" style="display:none">
+            <div class="advanced-panel">
+              <div class="advanced-section">
+                <div class="advanced-head">
+                  <div>
+                    <h4>Anti-Delete Protection</h4>
+                    <p>Configure advanced message recovery and preservation settings.</p>
+                  </div>
+                  <span class="badge blue">PRO</span>
+                </div>
+                
+                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:20px; margin-bottom:20px">
+                  <div class="health-stat-card">
+                    <div class="k">Saved Messages</div>
+                    <div class="v" id="adStatSaved">0</div>
+                  </div>
+                  <div class="health-stat-card">
+                    <div class="k">Engine Uptime</div>
+                    <div class="v" id="adStatUptime">0h 0m</div>
+                  </div>
+                </div>
+
+                <div class="advanced-section-inner" style="padding: 16px; background: rgba(255,255,255,0.02); border-radius: 12px; border: 1px solid rgba(255,255,255,0.08)">
+                  <div style="margin-bottom: 24px">
+                    <div style="font-weight: 600; margin-bottom: 12px; font-size: 13px; text-transform: uppercase; opacity: 0.7">Recovery Routing</div>
+                    <div style="display: flex; gap: 12px">
+                      <div class="control-card active" id="adTargetChat" style="flex: 1; margin: 0; cursor: pointer; display: flex; align-items: center; gap: 14px" onclick="setAdTarget('chat')">
+                        <div class="ad-radio-circle"></div>
+                        <div>
+                          <div class="label">Original Chat</div>
+                          <div class="desc">Restore messages in place</div>
+                        </div>
+                      </div>
+                      <div class="control-card" id="adTargetOwner" style="flex: 1; margin: 0; cursor: pointer; display: flex; align-items: center; gap: 14px" onclick="setAdTarget('owner')">
+                        <div class="ad-radio-circle"></div>
+                        <div>
+                          <div class="label">Bot Inbox</div>
+                          <div class="desc">Private log to owner</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style="margin-bottom: 0">
+                    <div style="font-weight: 600; margin-bottom: 12px; font-size: 13px; text-transform: uppercase; opacity: 0.7">Capture Matrix</div>
+                    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px" id="advAntiDeletePanel">
+                      <label class="check-pill" style="padding: 12px; border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; cursor: pointer; display: flex; justify-content: space-between; align-items: center">
+                        <div style="display:flex; align-items:center; gap:8px">
+                          <i class="ic" style="width:14px; height:14px; background-color:rgba(255,255,255,0.3); -webkit-mask-image:url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22 fill=%22none%22 stroke=%22currentColor%22 stroke-width=%222%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22><path d=%22M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z%22/></svg>')"></i>
+                          <span>Text</span>
+                        </div>
+                        <input type="checkbox" id="advAdFilterText" onchange="applyAntiDeleteConfig('filters', 'text', this.checked)" />
+                      </label>
+                      <label class="check-pill" style="padding: 12px; border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; cursor: pointer; display: flex; justify-content: space-between; align-items: center">
+                        <div style="display:flex; align-items:center; gap:8px">
+                          <i class="ic" style="width:14px; height:14px; background-color:rgba(255,255,255,0.3); -webkit-mask-image:url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22 fill=%22none%22 stroke=%22currentColor%22 stroke-width=%222%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22><rect x=%223%22 y=%223%22 width=%2218%22 height=%2218%22 rx=%222%22 ry=%222%22/><circle cx=%228.5%22 cy=%228.5%22 r=%221.5%22/><polyline points=%2221 15 16 10 5 21%22/></svg>')"></i>
+                          <span>Image</span>
+                        </div>
+                        <input type="checkbox" id="advAdFilterImage" onchange="applyAntiDeleteConfig('filters', 'image', this.checked)" />
+                      </label>
+                      <label class="check-pill" style="padding: 12px; border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; cursor: pointer; display: flex; justify-content: space-between; align-items: center">
+                        <div style="display:flex; align-items:center; gap:8px">
+                          <i class="ic" style="width:14px; height:14px; background-color:rgba(255,255,255,0.3); -webkit-mask-image:url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22 fill=%22none%22 stroke=%22currentColor%22 stroke-width=%222%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22><polygon points=%2223 7 16 12 23 17 23 7%22/><rect x=%221%22 y=%225%22 width=%2215%22 height=%2214%22 rx=%222%22 ry=%222%22/></svg>')"></i>
+                          <span>Video</span>
+                        </div>
+                        <input type="checkbox" id="advAdFilterVideo" onchange="applyAntiDeleteConfig('filters', 'video', this.checked)" />
+                      </label>
+                      <label class="check-pill" style="padding: 12px; border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; cursor: pointer; display: flex; justify-content: space-between; align-items: center">
+                        <div style="display:flex; align-items:center; gap:8px">
+                          <i class="ic" style="width:14px; height:14px; background-color:rgba(255,255,255,0.3); -webkit-mask-image:url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22 fill=%22none%22 stroke=%22currentColor%22 stroke-width=%222%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22><path d=%22M11 5L6 9H2v6h4l5 4V5z%22/><path d=%22M19.07 4.93a10 10 0 0 1 0 14.14%22/><path d=%22M15.54 8.46a5 5 0 0 1 0 7.07%22/></svg>')"></i>
+                          <span>Audio</span>
+                        </div>
+                        <input type="checkbox" id="advAdFilterAudio" onchange="applyAntiDeleteConfig('filters', 'audio', this.checked)" />
+                      </label>
+                      <label class="check-pill" style="padding: 12px; border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; cursor: pointer; display: flex; justify-content: space-between; align-items: center">
+                        <div style="display:flex; align-items:center; gap:8px">
+                          <i class="ic" style="width:14px; height:14px; background-color:rgba(255,255,255,0.3); -webkit-mask-image:url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22 fill=%22none%22 stroke=%22currentColor%22 stroke-width=%222%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22><path d=%22M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z%22/><path d=%22M8 14s1.5 2 4 2 4-2 4-2%22/><line x1=%229%22 y1=%229%22 x2=%229.01%22 y2=%229%22/><line x1=%2215%22 y1=%229%22 x2=%2215.01%22 y2=%229%22/></svg>')"></i>
+                          <span>Sticker</span>
+                        </div>
+                        <input type="checkbox" id="advAdFilterSticker" onchange="applyAntiDeleteConfig('filters', 'sticker', this.checked)" />
+                      </label>
+                      <label class="check-pill" style="padding: 12px; border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; cursor: pointer; display: flex; justify-content: space-between; align-items: center">
+                        <div style="display:flex; align-items:center; gap:8px">
+                          <i class="ic" style="width:14px; height:14px; background-color:rgba(255,255,255,0.3); -webkit-mask-image:url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22 fill=%22none%22 stroke=%22currentColor%22 stroke-width=%222%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22><path d=%22M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z%22/><polyline points=%2214 2 14 8 20 8%22/></svg>')"></i>
+                          <span>Doc</span>
+                        </div>
+                        <input type="checkbox" id="advAdFilterDoc" onchange="applyAntiDeleteConfig('filters', 'doc', this.checked)" />
+                      </label>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
