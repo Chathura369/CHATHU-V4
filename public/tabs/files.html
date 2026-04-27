@@ -1,0 +1,91 @@
+<div class="page" id="page-files">
+  <div class="ph">
+    <div>
+      <div class="title">Files</div>
+      <div class="desc" id="filesDesc">Cached downloads and media</div>
+    </div>
+    <div class="actions"><button class="btn btn-secondary btn-sm" onclick="loadFiles()">Refresh</button></div>
+  </div>
+  <div class="card" style="padding:0">
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Size</th>
+            <th>Modified</th>
+            <th style="text-align:right">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="filesTable">
+          <tr>
+            <td colspan="4" class="empty-row loading">Loading cached files...</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div id="filesError" class="notice-list" style="display:none;padding:16px"></div>
+  </div>
+</div>
+
+<script>
+async function loadFiles() {
+  try {
+    State.filesError = null;
+    State.data.files = await api('/bot-api/files');
+    const desc = document.getElementById('filesDesc');
+    if (desc) desc.textContent = \`\${State.data.files.length} files cached\`;
+    renderFiles();
+  }
+  catch (e) {
+    State.filesError = e.message;
+    State.data.files = [];
+    renderFiles();
+    toast(e.message, 'error');
+  }
+}
+function renderFiles() {
+  const tb = document.getElementById('filesTable');
+  if (!tb) return;
+  const errorWrap = document.getElementById('filesError');
+  if (errorWrap) {
+    if (State.filesError) {
+      errorWrap.style.display = '';
+      errorWrap.innerHTML = \`<div class="notice"><strong>Unable to load files</strong>\${escapeHtml(State.filesError)}</div>\`;
+    } else {
+      errorWrap.style.display = 'none';
+      errorWrap.innerHTML = '';
+    }
+  }
+  if (!State.data.files.length) { tb.innerHTML = \`<tr><td colspan="4" class="empty-row">\${State.filesError ? 'File list is temporarily unavailable. Try again after the bot finishes syncing storage.' : 'No downloaded files yet. Media and exports will appear here once they are cached.'}</td></tr>\`; return; }
+  tb.innerHTML = State.data.files.map(f => \`<tr>
+<td class="mono text-sm truncate" style="max-width:340px">\${escapeHtml(f.name)}</td>
+<td class="mono text-sm">\${escapeHtml((f.sizeMB || '--') + (f.sizeMB ? ' MB' : ''))}</td>
+<td class="text-xs dim">\${f.modified ? fmtTime(f.modified) : '--'}</td>
+<td style="text-align:right"><button class="btn btn-danger btn-sm" onclick="deleteFile('\${escapeHtml(f.name)}')">Delete</button></td>
+</tr>\`).join('');
+}
+async function deleteFile(name) {
+  if (!await confirmDialog('Delete this file?', { okText: 'Delete', danger: true })) return;
+  try {
+    const res = await api('/bot-api/files/' + encodeURIComponent(name), { method: 'DELETE' });
+    const deletedName = res?.name || name;
+    State.data.files = State.data.files.filter(f => f.name !== deletedName);
+    const desc = document.getElementById('filesDesc');
+    if (desc) desc.textContent = \`\${State.data.files.length} files cached\`;
+    renderFiles();
+    toast('Deleted', 'success');
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+}
+
+function initFilesTab() {
+  loadFiles();
+}
+
+window.initFilesTab = initFilesTab;
+window.loadFiles = loadFiles;
+window.renderFiles = renderFiles;
+window.deleteFile = deleteFile;
+</script>

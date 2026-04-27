@@ -2,9 +2,6 @@ node_modules/
 session/
 sessions/
 downloads/
-*.log
 .env
-yt-dlp-linux
-yt-dlp.exe
-yt-dlp-macos
+*.log
 db.json

@@ -1,5 +1,6 @@
 'use strict';
 
+const fs = require('fs');
 const {
     default: makeWASocket,
     DisconnectReason,
@@ -11,28 +12,215 @@ const pino = require('pino');
 const QRCode = require('qrcode');
 const { logger } = require('./logger');
 const { loadCommands, handleCommand } = require('./lib/handler');
-const { BROWSER, SESSION_DIR, AUTO_READ, AUTO_TYPING, PREFIX } = require('./config');
+const { findAutoReply } = require('./lib/automation-runtime');
+const { normalizeSriLankanPhoneNumber } = require('./lib/phone-normalizer');
+const { BROWSER, SESSION_DIR } = require('./config');
 const appState = require('./state');
 const db = require('./lib/db');
+const { getPrefix, getAutoRead, getAutoTyping, getBotName, getAutoViewStatus, getAutoReactStatus } = require('./lib/runtime-settings');
 
 const BAD_WORDS = ['fuck', 'shit', 'bitch', 'asshole', 'bastard', 'cunt', 'dick', 'pussy', 'whore', 'nigger'];
-
 const messageStore = [];
-let lastConnectTime = Math.floor(Date.now() / 1000);
+const spamMap = new Map();
+
+let activeSocket = null;
+let reconnectTimer = null;
+let startPromise = null;
+
+function delay(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 function cacheMsg(msg) {
     messageStore.push(msg);
     if (messageStore.length > 100) messageStore.shift();
 }
+
 function getCachedMsg(jid, id) {
-    return messageStore.find(m => m.key.remoteJid === jid && m.key.id === id);
+    return messageStore.find((msg) => msg.key.remoteJid === jid && msg.key.id === id);
 }
 
 function getIO() {
-    try { return require('./dashboard').io; } catch { return null; }
+    try {
+        return require('./dashboard').io;
+    } catch {
+        return null;
+    }
 }
 
-async function startBot() {
+function clearReconnectTimer() {
+    if (reconnectTimer) {
+        clearTimeout(reconnectTimer);
+        reconnectTimer = null;
+    }
+}
+
+function resetMainState(status = 'Disconnected') {
+    appState.setSocket(null);
+    appState.setStatus(status);
+    appState.setNumber(null);
+    appState.setConnectedAt(null);
+    appState.setMainQr(null);
+    appState.setMainPairCode(null);
+    appState.setMainPairCodeExpiresAt(null);
+}
+
+function clearMainPairState() {
+    appState.setMainPairMode(false);
+    appState.setMainPairPhone(null);
+    appState.setMainPairCode(null);
+    appState.setMainPairCodeExpiresAt(null);
+}
+
+function configureMainPairState(phoneNumber) {
+    appState.setMainPairMode(Boolean(phoneNumber));
+    appState.setMainPairPhone(phoneNumber || null);
+    appState.setMainPairCode(null);
+    appState.setMainPairCodeExpiresAt(null);
+}
+
+async function requestMainPairCode(sock) {
+    const phoneNumber = appState.getMainPairPhone();
+    if (!sock || !phoneNumber || !appState.isMainPairMode()) return null;
+
+    // Wait for the socket to have the requestPairingCode method available
+    let methodReady = false;
+    const methodCheckTimeout = Date.now() + 5000;
+    while (!methodReady && Date.now() < methodCheckTimeout) {
+        if (typeof sock.requestPairingCode === 'function') {
+            methodReady = true;
+            break;
+        }
+        await delay(100);
+    }
+
+    // Check if requestPairingCode method exists
+    if (typeof sock.requestPairingCode !== 'function') {
+        logger('[Main Bot] requestPairingCode method not available on socket. Please wait and retry.');
+        return null;
+    }
+
+    let lastError = null;
+    for (let attempt = 1; attempt <= 4; attempt++) {
+        try {
+            const normalized = normalizeSriLankanPhoneNumber(phoneNumber);
+            if (!normalized.ok) {
+                throw new Error(normalized.error);
+            }
+
+            const formattedPhone = normalized.phone;
+            const code = await sock.requestPairingCode(formattedPhone);
+            const expiresAt = Date.now() + 60000;
+            appState.setMainPairCode(code);
+            appState.setMainPairCodeExpiresAt(expiresAt);
+            appState.setStatus('Awaiting Pair Code');
+
+            const io = getIO();
+            if (io) {
+                io.emit('session:paircode', { id: '__main__', code, expiresAt });
+                io.emit('update', { status: 'Awaiting Pair Code', pairCode: code, pairCodeExpiresAt: expiresAt });
+            }
+            logger(`[Main Bot] Pair code generated for ${formattedPhone}: ${code}`);
+            return code;
+        } catch (error) {
+            lastError = error;
+            logger(`[Main Bot] Pair code attempt ${attempt}/4 failed: ${error.message}`);
+            if (attempt < 4) {
+                await delay(1500);
+            }
+        }
+    }
+
+    throw lastError || new Error('Failed to generate main pair code');
+}
+
+function ensureSessionDir() {
+    if (!fs.existsSync(SESSION_DIR)) {
+        fs.mkdirSync(SESSION_DIR, { recursive: true });
+    }
+}
+
+async function clearMainSessionCredentials() {
+    try {
+        if (fs.existsSync(SESSION_DIR)) {
+            fs.rmSync(SESSION_DIR, { recursive: true, force: true });
+        }
+        ensureSessionDir();
+    } catch (error) {
+        logger(`Session Clear Error: ${error.message}`);
+    }
+}
+
+async function stopBot(options = {}) {
+    const {
+        logout = false,
+        clearCredentials = false,
+        status = 'Disconnected'
+    } = options;
+
+    clearReconnectTimer();
+    const socket = activeSocket;
+    activeSocket = null;
+
+    if (socket) {
+        try { socket.ev.removeAllListeners('connection.update'); } catch {}
+        try { socket.ev.removeAllListeners('creds.update'); } catch {}
+        try { socket.ev.removeAllListeners('messages.upsert'); } catch {}
+        try { socket.ev.removeAllListeners('error'); } catch {}
+        if (logout) {
+            try { await socket.logout(); } catch {}
+        }
+        try { socket.end(undefined); } catch {}
+    }
+
+    resetMainState(status);
+    appState.resetQrAttempts();
+    appState.setQrPaused(false);
+
+    if (clearCredentials) {
+        await clearMainSessionCredentials();
+        clearMainPairState();
+    }
+}
+
+function scheduleReconnect(delayMs = 5000) {
+    if (appState.isQrPaused()) return;
+    if (reconnectTimer) return;
+
+    reconnectTimer = setTimeout(() => {
+        reconnectTimer = null;
+        startBot({ forceRestart: true }).catch((error) => {
+            logger(`Reconnect Error: ${error.message}`);
+        });
+    }, delayMs);
+}
+
+async function syncGroups(sock, sessionId = '__main__') {
+    try {
+        if (!sock.groupFetchAllFull) return;
+        const groups = await sock.groupFetchAllFull();
+        Object.entries(groups).forEach(([jid, metadata]) => {
+            db.update('groups', jid, {
+                name: metadata.subject,
+                memberCount: metadata.participants?.length || 0,
+                sessionId: sessionId || '__main__'
+            });
+        });
+        logger(`[${sessionId}] Synced ${Object.keys(groups).length} groups to Dashboard.`);
+    } catch (error) {
+        logger(`[${sessionId}] Group Sync Error: ${error.message}`);
+    }
+}
+
+async function createSocket(options = {}) {
+    ensureSessionDir();
     loadCommands();
+
+    const pairPhone = options.pairMode && options.phoneNumber
+        ? normalizeSriLankanPhoneNumber(options.phoneNumber).phone || null
+        : null;
+    configureMainPairState(pairPhone);
+
     const { state, saveCreds } = await useMultiFileAuthState(SESSION_DIR);
     const { version } = await fetchLatestBaileysVersion();
 
@@ -57,182 +245,488 @@ async function startBot() {
         }
     });
 
-    // Store socket in shared state for API access
+    activeSocket = sock;
     appState.setSocket(sock);
+    
+    // Set start time immediately to ignore backlog messages processed before "open" state
+    sock.startTime = Math.floor(Date.now() / 1000);
 
     sock.ev.on('connection.update', async (update) => {
+        if (sock !== activeSocket) return;
+
         try {
             const { connection, lastDisconnect, qr } = update;
-            const io = getIO();
+            const dashboardIO = getIO();
 
             if (qr) {
-                try {
-                    const qrDataUrl = await QRCode.toDataURL(qr, { width: 300, margin: 2 });
-                    appState.setMainQr(qrDataUrl);
-                    if (io) io.emit('qr', qrDataUrl);
-                    logger('[Main Bot] QR code generated. Scan with WhatsApp.');
-                } catch (err) { logger(`QR Error: ${err.message}`); }
+                if (appState.isMainPairMode()) {
+                    logger('[Main Bot] QR received during pair mode; waiting for phone-number linking instead.');
+                    return;
+                }
+                const attempts = appState.incQrAttempts();
+                const qrDataUrl = await QRCode.toDataURL(qr, { width: 300, margin: 2 });
+                appState.setMainQr(qrDataUrl);
+                appState.setStatus('Awaiting QR Scan');
+                if (dashboardIO) {
+                    dashboardIO.emit('qr', qrDataUrl);
+                    dashboardIO.emit('update', { status: 'Awaiting QR Scan' });
+                }
+                logger(`[Main Bot] QR generated (${attempts}/6). Scan with WhatsApp.`);
+
+                if (attempts >= 6) {
+                    logger('[Main Bot] QR pause: too many unscanned codes. Click "Reconnect" to retry.');
+                    appState.setQrPaused(true);
+                    await stopBot({ status: 'Idle (Paused)' });
+                }
+                return;
+            }
+
+            if (connection === 'open') {
+                clearReconnectTimer();
+                logger('[Main Bot] Connected.');
+                sock.startTime = Math.floor(Date.now() / 1000); // Refresh start time on open
+                appState.setStatus('Connected');
+                appState.resetQrAttempts();
+                appState.setQrPaused(false);
+                appState.setConnectedAt(new Date().toISOString());
+                appState.setMainQr(null);
+                appState.setMainPairCode(null);
+                appState.setMainPairCodeExpiresAt(null);
+                appState.setMainPairMode(false);
+                appState.setMainPairPhone(null);
+
+                const number = sock.user?.id?.split(':')[0] || sock.user?.id || 'Unknown';
+                appState.setNumber(number);
+                appState.setPushName(sock.user?.name || null);
+
+                if (dashboardIO) {
+                    dashboardIO.emit('update', { status: 'Connected', number });
+                }
+
+                await syncGroups(sock, '__main__');
+                return;
             }
 
             if (connection === 'close') {
                 const statusCode = lastDisconnect?.error?.output?.statusCode;
                 const reason = lastDisconnect?.error?.message || 'Unknown';
-                
-                // Specific handling for common DisconnectReasons
-                if (statusCode === DisconnectReason.loggedOut || statusCode === 401) {
-                    logger(`❌ [Main Bot] Logged Out (401). Clearing session and forcing re-scan...`);
-                    appState.setStatus('Logged Out');
-                    try {
-                        const fs = require('fs');
-                        const path = require('path');
-                        if (fs.existsSync(SESSION_DIR)) {
-                            fs.rmSync(SESSION_DIR, { recursive: true, force: true });
-                            fs.mkdirSync(SESSION_DIR, { recursive: true });
-                        }
-                    } catch (err) { logger(`Session Clear Error: ${err.message}`); }
-                    setTimeout(() => startBot(), 3000);
-                } else if (statusCode === 440) {
-                    logger('⚠️ [Main Bot] Session Replaced (440). Another instance may be running.');
-                    appState.setStatus('Session Replaced');
-                } else {
-                    logger(`[Main Bot] Connection closed (${statusCode}): ${reason}. Reconnecting...`);
-                    appState.setStatus('Disconnected');
+                const loggedOut = statusCode === DisconnectReason.loggedOut || statusCode === 401;
+
+                if (loggedOut) {
+                    logger(`[Main Bot] Logged out (${statusCode}). Clearing session and waiting for relink.`);
+                    await stopBot({ status: 'Logged Out', clearCredentials: true });
+                    return;
                 }
 
-                appState.setSocket(null);
-                appState.setNumber(null);
-                if (io) io.emit('update', { status: 'Reconnecting...' });
-                
-                const shouldReconnect = statusCode !== DisconnectReason.loggedOut && statusCode !== 401;
-                if (shouldReconnect) setTimeout(() => startBot(), 5000);
-            } else if (connection === 'open') {
-                logger('✅ [Main Bot] Connected!');
-                appState.setStatus('Connected');
-                appState.setConnectedAt(new Date().toISOString());
-                sock.startTime = Math.floor(Date.now() / 1000);
-                appState.setMainQr(null);
-                appState.setMainPairCode(null);
-                const num = sock.user?.id?.split(':')[0] || sock.user?.id || 'Unknown';
-                appState.setNumber(num);
-                if (io) io.emit('update', { status: 'Connected', number: num });
+                if (statusCode === 440) {
+                    logger('[Main Bot] Session replaced by another client.');
+                    await stopBot({ status: 'Session Replaced' });
+                    return;
+                }
 
-                // Sync Groups to DB for Dashboard
-                const db = require('./lib/db');
-                try {
-                    if (sock.groupFetchAllFull) {
-                        const groups = await sock.groupFetchAllFull();
-                        Object.entries(groups).forEach(([jid, metadata]) => {
-                            db.update('groups', jid, {
-                                name: metadata.subject,
-                                memberCount: metadata.participants?.length || 0,
-                                sessionId: 'main'
-                            });
-                        });
-                        logger(`Synced ${Object.keys(groups).length} groups to Dashboard.`);
-                    }
-                } catch (e) { logger(`Group Sync Error: ${e.message}`); }
+                logger(`[Main Bot] Connection closed (${statusCode || 'n/a'}): ${reason}.`);
+                await stopBot({ status: appState.isQrPaused() ? 'Idle (Paused)' : 'Disconnected' });
+                if (dashboardIO) {
+                    dashboardIO.emit('update', { status: 'Reconnecting...' });
+                }
+                scheduleReconnect();
             }
-        } catch (e) {
-            logger(`Connection Update Error: ${e.message}`);
+        } catch (error) {
+            logger(`Connection Update Error: ${error.message}`);
         }
     });
 
-    // Handle unexpected socket errors to prevent crash
-    sock.ev.on('error', (err) => {
-        logger(`Socket Error: ${err.message}`);
-        if (err.message.includes('Connection Closed') || err.message.includes('Precondition Required')) {
-            // This is handled by connection.update 'close', but catching here prevents throw
-        }
+    sock.ev.on('error', (error) => {
+        if (sock !== activeSocket) return;
+        logger(`Socket Error: ${error.message}`);
     });
 
     sock.ev.on('creds.update', saveCreds);
-
-    sock.ev.on('messages.upsert', async (m) => {
-        await handleMessages(sock, m);
+    sock.ev.on('messages.upsert', async (messageUpdate) => {
+        if (sock !== activeSocket) return;
+        await handleMessages(sock, messageUpdate);
     });
+
+    if (pairPhone && !state.creds.registered) {
+        appState.setStatus('Preparing Pair Code');
+        if (io) {
+            io.emit('update', { status: 'Preparing Pair Code' });
+        }
+        setTimeout(() => {
+            if (sock !== activeSocket || !appState.isMainPairMode()) return;
+            requestMainPairCode(sock).catch(() => {});
+        }, 5000);
+    }
 
     return sock;
 }
 
-const spamMap = new Map();
+async function startBot(options = {}) {
+    const { forceRestart = false, clearCredentials = false, pairMode = false, phoneNumber = '' } = options;
+    const shouldClearCredentials = clearCredentials || pairMode;
 
-async function handleMessages(sock, m) {
-    if (m.type !== 'notify') return;
-    const db = require('./lib/db');
+    if (startPromise) {
+        return startPromise;
+    }
+
+    if (forceRestart || shouldClearCredentials) {
+        await stopBot({ clearCredentials: shouldClearCredentials, status: 'Disconnected' });
+    } else if (activeSocket) {
+        return activeSocket;
+    }
+
+    startPromise = createSocket({ pairMode, phoneNumber })
+        .finally(() => {
+            startPromise = null;
+        });
+
+    return startPromise;
+}
+
+async function handleMessages(sock, messageBatch, sessionId = '__main__') {
+    if (messageBatch.type !== 'notify') return;
+
+    let owner = null;
+    let sAutoRead = null;
+    let sAutoTyping = null;
+    let sAutoReact = null;
+    let sNsfw = null;
+    let sPrefix = null;
+    let sName = null;
+    let sAutoReply = null;
+    let workMode = 'public';
+    let autoStatus = false;
+    let botEnabled = true;
+    let disabledModules = [];
+    let sAiAutoReply = null;
+    let sAiAutoVoice = null;
+    let sAiAutoPersona = null;
+    let sAiAutoLang = null;
+    let sAiGroupMode = null;
+
+    if (sessionId === '__main__') {
+        const ov = db.getSetting('main_bot_settings') || {};
+        workMode = ov.workMode || appState.getWorkMode();
+        autoStatus = ov.autoStatus !== undefined ? ov.autoStatus : appState.getAutoStatus();
+        botEnabled = ov.botEnabled !== undefined ? ov.botEnabled : appState.getBotEnabled();
+        disabledModules = ov.disabledModules || appState.getDisabledModules();
+        owner = ov.owner || appState.getOwner();
+        sAutoRead = ov.autoRead !== undefined ? ov.autoRead : appState.getAutoRead();
+        sAutoTyping = ov.autoTyping !== undefined ? ov.autoTyping : appState.getAutoTyping();
+        sNsfw = ov.nsfwEnabled !== undefined ? ov.nsfwEnabled : appState.getNsfwEnabled();
+        sAutoReact = ov.autoReactStatus !== undefined ? ov.autoReactStatus : appState.getAutoReactStatus();
+        sPrefix = ov.prefix || getPrefix();
+        sName = ov.name || getBotName();
+        sAutoReply = ov.autoReply !== undefined ? ov.autoReply : appState.getAutoReply();
+        sAiAutoReply = ov.aiAutoReply !== undefined ? ov.aiAutoReply : appState.getAiAutoReply();
+        sAiAutoVoice = ov.aiAutoVoice !== undefined ? ov.aiAutoVoice : appState.getAiAutoVoice();
+        sAiAutoPersona = ov.aiAutoPersona || appState.getAiAutoPersona();
+        sAiAutoLang = ov.aiAutoLang || appState.getAiAutoLang();
+        sAiGroupMode = ov.aiGroupMode || appState.getAiGroupMode();
+    } else {
+        const sessionMgr = require('./session-manager');
+        const session = sessionMgr.get(sessionId);
+        if (session) {
+            workMode = session.workMode || 'public';
+            autoStatus = session.autoStatus !== false;
+            botEnabled = session.botEnabled !== false;
+            disabledModules = session.disabledModules || [];
+            owner = session.owner || null;
+            
+            // Per-bot overrides with global fallbacks
+            sAutoRead = session.autoRead !== null && session.autoRead !== undefined 
+                ? session.autoRead 
+                : appState.getAutoRead();
+            sAutoTyping = session.autoTyping !== null && session.autoTyping !== undefined 
+                ? session.autoTyping 
+                : appState.getAutoTyping();
+            sAutoReact = session.autoReactStatus !== null && session.autoReactStatus !== undefined 
+                ? session.autoReactStatus 
+                : appState.getAutoReactStatus();
+            sNsfw = session.nsfwEnabled !== null && session.nsfwEnabled !== undefined 
+                ? session.nsfwEnabled 
+                : appState.getNsfwEnabled();
+            sPrefix = session.prefix || null;
+            sName = session.name || null;
+            sAutoReply = session.autoReply !== null && session.autoReply !== undefined 
+                ? session.autoReply 
+                : true; // Default to true if not specified per-bot
+            
+            sAiAutoReply = session.aiAutoReply !== undefined ? session.aiAutoReply : null;
+            sAiAutoVoice = session.aiAutoVoice !== undefined ? session.aiAutoVoice : null;
+            sAiAutoPersona = session.aiAutoPersona || null;
+            sAiAutoLang = session.aiAutoLang || null;
+            sAiGroupMode = session.aiGroupMode || null;
+        }
+    }
+
+    // Resolve behavioral settings: Session > Global
+    const finalAutoRead = sAutoRead !== null ? sAutoRead : getAutoRead();
+    const finalAutoTyping = sAutoTyping !== null ? sAutoTyping : getAutoTyping();
+    const finalAutoReact = sAutoReact !== null ? sAutoReact : getAutoReactStatus();
+    const finalNsfw = sNsfw !== null ? sNsfw : getNsfwEnabled();
+    const finalPrefix = sPrefix || getPrefix();
+    const finalBotName = sName || getBotName();
+    const finalAutoReply = sAutoReply !== null ? sAutoReply : true;
     
-    for (const msg of m.messages) {
+    // AI Settings Resolution: Per-bot > Global fallback
+    const finalAiAutoReply = sAiAutoReply !== null ? sAiAutoReply : appState.getAiAutoReply();
+    const finalAiAutoVoice = sAiAutoVoice !== null ? sAiAutoVoice : appState.getAiAutoVoice();
+    const finalAiAutoPersona = sAiAutoPersona || appState.getAiAutoPersona() || 'friendly';
+    const finalAiAutoLang = sAiAutoLang || appState.getAiAutoLang() || 'mixed';
+    const finalAiGroupMode = sAiGroupMode || appState.getAiGroupMode() || 'mention';
+    
+    // Auto-view / Auto-react for status@broadcast are now independent of the
+    // generic autoStatus flag — either global toggle alone is enough to trigger.
+    const finalAutoView = sessionId === '__main__'
+        ? !!getAutoViewStatus()
+        : autoStatus !== false;
+
+
+    // Removed global early exit for !botEnabled so owners can wake it up    // Increment Processed Count
+    if (sessionId === '__main__') {
+        appState.incProcessedCount();
+    } else {
+        const sessionMgr = require('./session-manager');
+        const session = sessionMgr.get(sessionId);
+        if (session) {
+            sessionMgr.updateSessionMetrics(sessionId, { 
+                processedCount: (session.processedCount || 0) + 1 
+            });
+        }
+    }
+
+    // Globally filter out backlog messages from the batch
+    const startupGrace = 5; // 5 seconds grace period
+    const validMessages = messageBatch.messages.filter(msg => {
+        if (!msg.message) return false;
+        
+        // Get message timestamp (Baileys usually gives it in seconds)
+        // Check multiple locations for the timestamp
+        const rawTime = msg.messageTimestamp || msg.message?.messageTimestamp || msg.message?.extendedTextMessage?.contextInfo?.timestamp || 0;
+        const msgTime = Number(rawTime);
+        
+        // If we don't have a start time yet, use a failsafe (but we set it in createSocket)
+        const botStartTime = sock.startTime || Math.floor(Date.now() / 1000);
+
+        // If message is older than bot start time - grace, it's definitely backlog
+        const isBacklog = msgTime < (botStartTime - startupGrace);
+        
+        if (isBacklog) {
+            // Keep logs clean but log normal messages for debugging
+            if (msg.key?.remoteJid !== 'status@broadcast') {
+                logger(`[Backlog] Ignoring old message from ${msg.key.remoteJid} (Diff: ${botStartTime - msgTime}s)`);
+            }
+            return false;
+        }
+
+        return true;
+    });
+
+    for (const msg of validMessages) {
         if (!msg.message) continue;
+
         const jid = msg.key.remoteJid;
         const fromMe = msg.key.fromMe;
         const pushName = msg.pushName || 'User';
         const isGroup = jid.endsWith('@g.us');
+        const sender = msg.key.participant || jid;
 
-        // Update User in DB
-        if (!fromMe && jid.endsWith('@s.whatsapp.net')) {
-            db.update('users', jid, { 
-                lastSeen: new Date().toISOString(),
-                pushName: pushName,
-                number: jid.split('@')[0]
-            });
+        if (jid === 'status@broadcast') {
+            const { jidNormalizedUser } = require('@whiskeysockets/baileys');
+
+            let selfJid = null;
+            try {
+                selfJid = sock?.user?.id ? jidNormalizedUser(sock.user.id) : null;
+            } catch {}
+
+            const rawParticipant = msg.key?.participant || '';
+            const normParticipant = rawParticipant.includes('@')
+                ? jidNormalizedUser(rawParticipant)
+                : rawParticipant;
+
+            const isOwnStatus = fromMe || (selfJid && normParticipant && normParticipant === selfJid);
+
+            if (!isOwnStatus && (finalAutoView || finalAutoReact)) {
+                const readDelay = Math.floor(Math.random() * 5000) + 2000 + Math.floor(Math.random() * 800);
+
+                setTimeout(async () => {
+                    try {
+                        const key = msg?.key;
+                        const remoteJid = key?.remoteJid;
+                        const msgId = key?.id;
+                        let participant = key?.participant || rawParticipant || null;
+
+                        if (!key || !remoteJid || !msgId || !participant) {
+                            logger(`[Status] Missing key fields | remoteJid=${remoteJid} msgId=${msgId} participant=${participant}`);
+                            return;
+                        }
+
+                        let sanitizedParticipant = participant;
+                        if (participant.includes(':') && participant.includes('@')) {
+                            const user = participant.split(':')[0];
+                            const server = participant.split('@')[1];
+                            sanitizedParticipant = `${user}@${server}`;
+                        }
+
+                        logger(`[Status Debug] Incoming status | remoteJid=${remoteJid} participant=${participant} sanitized=${sanitizedParticipant} id=${msgId}`);
+
+                        if (finalAutoView) {
+                            try {
+                                await sock.readMessages([key]);
+                                logger(`[Status View] readMessages() sent for ${sanitizedParticipant}`);
+
+                                await sock.sendReceipt(
+                                    remoteJid,
+                                    sanitizedParticipant,
+                                    [msgId],
+                                    'read'
+                                ).catch((e) => {
+                                    logger(`[Status View] sendReceipt warning: ${e?.message || e}`);
+                                });
+
+                                logger(`[Status View] Attempted view for ${sanitizedParticipant.split('@')[0]}`);
+                            } catch (viewErr) {
+                                logger(`[Status View] Error: ${viewErr.message}`);
+                            }
+                        }
+
+                        if (finalAutoReact) {
+                            const reactDelay = Math.floor(Math.random() * 3500) + 1500;
+
+                            setTimeout(async () => {
+                                try {
+                                    const reactions = [
+                                        "🔥", "❤️", "😂", "💯", "✨", "🚀", "😍", "🙏",
+                                        "🎉", "👏", "👍", "😁", "😎", "🤩", "😮", "💖",
+                                        "⚡", "👑", "🌹", "🥹", "😅", "🥰", "😜", "🤪",
+                                        "🥺", "😇", "😋", "😌"
+                                    ];
+
+                                    const emoji = reactions[Math.floor(Math.random() * reactions.length)];
+                                    const targetJid = jidNormalizedUser(sanitizedParticipant);
+
+                                    if (selfJid && targetJid === selfJid) return;
+
+                                    const reactionPayload = {
+                                        react: {
+                                            text: emoji,
+                                            key: key
+                                        }
+                                    };
+
+                                    const res = await sock.sendMessage(
+                                        targetJid,
+                                        reactionPayload
+                                    );
+
+                                    logger(`[Status React] Attempted ${emoji} to ${sanitizedParticipant.split('@')[0]}`);
+                                    // logger(`[Status React Debug] response=${JSON.stringify(res)}`);
+                                } catch (reactErr) {
+                                    logger(`[Status React] Error: ${reactErr.message}`);
+                                }
+                            }, reactDelay);
+                        }
+
+                    } catch (err) {
+                        logger(`[Status] Processing error: ${err.message}`);
+                    }
+                }, readDelay);
+            }
+
+            continue;
         }
 
-        // Group Protections
+        // Private Mode Check
+        const isUserOwner = db.isUserBanned(sender) ? false : (msg.key.fromMe || require('./lib/utils').isOwner(sender, owner));
+        if (!isUserOwner && (workMode === 'self' || (workMode === 'private' && isGroup))) {
+            continue;
+        }
+
         if (isGroup && !fromMe) {
             const group = db.get('groups', jid);
             if (group) {
                 const text = msg.message.conversation || msg.message.extendedTextMessage?.text || '';
-                
-                // Anti-Link
-                if (group.antiLink && (text.includes('chat.whatsapp.com') || text.includes('http://') || text.includes('https://'))) {
+
+                if ((group.antiLink || group.antilink) && (text.includes('chat.whatsapp.com') || text.includes('http://') || text.includes('https://'))) {
                     logger(`Anti-Link: Deleting link from ${pushName} in ${group.name}`);
                     await sock.sendMessage(jid, { delete: msg.key });
                     continue;
                 }
 
-                // Anti-Spam (detects 3+ messages in 5s)
                 if (group.antiSpam) {
                     const now = Date.now();
-                    const userSpam = spamMap.get(msg.key.participant || jid) || [];
-                    const recent = userSpam.filter(t => now - t < 5000);
-                    recent.push(now);
-                    spamMap.set(msg.key.participant || jid, recent);
-                    if (recent.length > 4) {
+                    const spamKey = msg.key.participant || jid;
+                    const recentMessages = (spamMap.get(spamKey) || []).filter((timestamp) => now - timestamp < 5000);
+                    recentMessages.push(now);
+                    spamMap.set(spamKey, recentMessages);
+                    if (recentMessages.length > 4) {
                         logger(`Anti-Spam: Skipping message from ${pushName} in ${group.name}`);
                         continue;
                     }
                 }
 
-                // Mute Check (If muted, we don't process commands further down)
-                if (group.isMuted) {
-                    const prefix = db.getSetting('prefix') || '.';
-                    if (text.startsWith(prefix)) {
-                        logger(`Mute: Ignoring command in ${group.name}`);
-                        continue;
-                    }
+                if (group.isMuted && text.startsWith(getPrefix())) {
+                    logger(`Mute: Ignoring command in ${group.name}`);
+                    continue;
                 }
             }
         }
     }
+
     if (appState.isRestartRequested()) {
         appState.clearRestart();
-        logger('Admin restart requested — reconnecting...');
-        try { await sock.logout(); } catch {}
-        setTimeout(() => startBot(), 2000);
+        logger('Admin restart requested. Reconnecting main bot...');
+        await stopBot({ status: 'Restarting' });
+        setTimeout(() => {
+            startBot({ forceRestart: true }).catch(() => {});
+        }, 2000);
         return;
     }
 
-    for (const msg of m.messages) {
-        if (!msg.message) continue;
-
-        // Skip messages older than current connection (Anti-Spam)
-        const msgTime = msg.messageTimestamp || msg.message?.messageTimestamp || 0;
-        if (sock.startTime && msgTime < sock.startTime) continue;
-
+    for (const msg of validMessages) {
         const from = msg.key.remoteJid;
+        if (from === 'status@broadcast') continue;
 
-        if (from === 'status@broadcast') {
-            if (AUTO_READ) await sock.readMessages([msg.key]).catch(() => {});
-            continue;
+        let sender = msg.key.participant || msg.key.remoteJid;
+        const pushName = msg.pushName || null;
+        
+        // Resolve JID: Check if this is an LID that needs mapping to a phone number
+        const userDb = db.getObjectCollection('users');
+        let resolvedSender = sender;
+        
+        // 1. Check if we have a direct mapping for this LID in the DB
+        if (sender.endsWith('@lid')) {
+            const foundByLid = userDb[sender];
+            if (foundByLid && foundByLid.number) {
+                resolvedSender = foundByLid.number + '@s.whatsapp.net';
+            }
+        }
+        
+        // 2. Fallback: Check if the LID string itself IS the phone number (common for some users)
+        if (resolvedSender.endsWith('@lid')) {
+            const potentialNum = resolvedSender.split('@')[0];
+            if (potentialNum.length >= 10 && !isNaN(potentialNum)) {
+                resolvedSender = potentialNum + '@s.whatsapp.net';
+            }
+        }
+
+        // Apply global owner override
+        if (sender === '269922018025553@lid') resolvedSender = '94742514900@s.whatsapp.net';
+
+        // Automaticaly update user metadata (Name and Last Seen)
+        if (sender && sender !== 'status@broadcast') {
+            const updateData = { 
+                lastSeen: new Date().toISOString(),
+                number: (resolvedSender || sender).split('@')[0]
+            };
+            if (pushName) updateData.pushName = pushName;
+            
+            // Save to both identifiers to ensure future mapping works
+            db.update('users', sender, updateData);
+            if (resolvedSender !== sender) {
+                db.update('users', resolvedSender, updateData);
+            }
         }
 
         const text = msg.message.conversation ||
@@ -240,23 +734,48 @@ async function handleMessages(sock, m) {
             msg.message.imageMessage?.caption ||
             msg.message.videoMessage?.caption || '';
 
-        if (msg.key.fromMe && !text.startsWith(PREFIX)) continue;
+        // Check ownership using both the raw sender and the resolved identity
+        const isUserOwner = msg.key.fromMe || 
+                           require('./lib/utils').isOwner(sender, owner) || 
+                           require('./lib/utils').isOwner(resolvedSender, owner) ||
+                           (userDb[sender]?.isOwner) || 
+                           (userDb[resolvedSender]?.isOwner);
 
-        const sender = msg.key.participant || msg.key.remoteJid;
+        if (!botEnabled) {
+            // If bot is disabled, ignore everything EXCEPT owner running system commands (.on, .settings)
+            if (isUserOwner && text.startsWith(finalPrefix)) {
+                const cmdName = text.slice(finalPrefix.length).trim().split(' ')[0].toLowerCase();
+                if (!['on', 'settings', 'status', 'config'].includes(cmdName)) {
+                    continue;
+                }
+            } else {
+                continue;
+            }
+        }
 
-        const bannedList = db.get('settings', 'banned') || {};
-        if (bannedList[sender]) continue;
+        logger(`[Incoming] from: ${from}, sender: ${sender}, text: "${text}"`);
+
+        // Fix: Behavioral features apply to all incoming messages
+        if (finalAutoRead && !msg.key.fromMe) await sock.sendReceipt(msg.key.remoteJid, msg.key.participant, [msg.key.id], 'read').catch(() => {});
+        if (finalAutoTyping && !msg.key.fromMe) await sock.sendPresenceUpdate('composing', from).catch(() => {});
+
+        const prefix = finalPrefix;
+        
+        // Skip own messages unless they start with prefix (commands) or are pure numeric replies (for download selection)
+        if (msg.key.fromMe && !text.startsWith(finalPrefix) && !/^\d+$/.test(text.trim())) continue;
+
+        if (db.isUserBanned(sender)) continue;
+        if (!isUserOwner && (workMode === 'self' || (workMode === 'private' && from.endsWith('@g.us')))) continue;
 
         cacheMsg(msg);
 
-        // Group moderation
         if (from.endsWith('@g.us') && text) {
-            const groupSettings = db.get('groups', from);
+            const groupSettings = db.get('groups', from) || {};
 
-            if (groupSettings.antilink && /(https?:\/\/|chat\.whatsapp\.com)/i.test(text)) {
+            if ((groupSettings.antilink || groupSettings.antiLink) && /(https?:\/\/|chat\.whatsapp\.com)/i.test(text)) {
                 try {
                     const meta = await sock.groupMetadata(from);
-                    const isAdmin = meta.participants.find(p => p.id === sender)?.admin;
+                    const isAdmin = meta.participants.find((participant) => participant.id === sender)?.admin;
                     if (!isAdmin) {
                         await sock.sendMessage(from, { delete: msg.key });
                         await sock.groupParticipantsUpdate(from, [sender], 'remove');
@@ -265,14 +784,14 @@ async function handleMessages(sock, m) {
                 } catch {}
             }
 
-            if (groupSettings.antibad && BAD_WORDS.some(w => text.toLowerCase().includes(w))) {
+            if (groupSettings.antibad && BAD_WORDS.some((word) => text.toLowerCase().includes(word))) {
                 try {
                     const meta = await sock.groupMetadata(from);
-                    const isAdmin = meta.participants.find(p => p.id === sender)?.admin;
+                    const isAdmin = meta.participants.find((participant) => participant.id === sender)?.admin;
                     if (!isAdmin) {
                         await sock.sendMessage(from, { delete: msg.key });
                         await sock.sendMessage(from, {
-                            text: `⚠️ @${sender.split('@')[0]}, watch your language! This group does not allow bad words.`,
+                            text: `Warning @${sender.split('@')[0]}, this group does not allow bad words.`,
                             mentions: [sender]
                         });
                         continue;
@@ -281,20 +800,54 @@ async function handleMessages(sock, m) {
             }
         }
 
-        if (AUTO_READ && text.startsWith(PREFIX)) await sock.readMessages([msg.key]).catch(() => {});
-        if (AUTO_TYPING && text.startsWith(PREFIX)) await sock.sendPresenceUpdate('composing', from).catch(() => {});
+        const isCommand = await handleCommand(sock, msg, from, text, disabledModules, { 
+            workMode, owner, nsfwEnabled: finalNsfw, prefix: finalPrefix, botName: finalBotName, sessionId,
+            aiAutoReply: finalAiAutoReply,
+            aiAutoVoice: finalAiAutoVoice,
+            aiAutoPersona: finalAiAutoPersona,
+            aiAutoLang: finalAiAutoLang,
+            aiGroupMode: finalAiGroupMode
+        });
+        if (isCommand) {
+            // Increment Command Count
+            if (sessionId === '__main__') {
+                appState.incCommandsCount();
+            } else {
+                const sessionMgr = require('./session-manager');
+                const session = sessionMgr.get(sessionId);
+                if (session) {
+                    sessionMgr.updateSessionMetrics(sessionId, { 
+                        commandsCount: (session.commandsCount || 0) + 1 
+                    });
+                }
+            }
+        }
+        const botNumber = sock.user?.id?.split(':')[0];
+        if (sender.startsWith(botNumber)) continue;
 
-        const isCommand = await handleCommand(sock, msg, from, text);
+        if (!isCommand && !msg.key.fromMe && !text.startsWith(finalPrefix) && finalAutoReply) {
+            const autoReplyRule = findAutoReply(text, { isGroupMessage: from.endsWith('@g.us') });
+            if (autoReplyRule) {
+                logger(`[AutoReply] Rule matched: "${text.substring(0, 20)}..." -> "${autoReplyRule.response.substring(0, 20)}..."`);
+                await sock.sendMessage(from, { text: autoReplyRule.response }).catch((err) => {
+                    logger(`[AutoReply] Failed to send: ${err.message}`);
+                });
+                continue;
+            }
 
-        if (!isCommand && !msg.key.fromMe) {
             const lower = text.toLowerCase().trim();
             if (lower === 'hi' || lower === 'hello' || lower === 'hey') {
                 await sock.sendMessage(from, {
-                    text: `Hello! 👋 Welcome, Master!\n\nType *${PREFIX}menu* to see all my features or *${PREFIX}help* for a quick guide. 🚀\n\n- Powered by *CHATHU MD*`
+                    text: `Hello! Welcome.\n\nType *${finalPrefix}menu* to see all features or *${finalPrefix}help* for a quick guide.\n\n- Powered by *${getBotName()}*`
                 });
             }
         }
     }
 }
 
-module.exports = { startBot, handleMessages };
+module.exports = {
+    startBot,
+    stopBot,
+    handleMessages,
+    syncGroups
+};

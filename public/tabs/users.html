@@ -1,0 +1,274 @@
+<style>
+  .pro-table { width: 100%; border-collapse: separate; border-spacing: 0; }
+  .pro-table th { background: rgba(255, 255, 255, 0.03); color: var(--txt-3); font-size: 0.65rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; padding: 14px 15px; border-bottom: 1px solid rgba(255, 255, 255, 0.06); text-align: left; }
+  .pro-table td { padding: 18px 15px; border-bottom: 1px solid rgba(255, 255, 255, 0.04); vertical-align: middle; transition: 0.2s; }
+  .pro-table tr:hover td { background: rgba(255, 255, 255, 0.02); }
+  .bot-id-cell { display: flex; flex-direction: column; gap: 4px; }
+  .bot-id-main { font-weight: 700; font-size: 0.95rem; display: flex; align-items: center; gap: 10px; color: var(--txt); }
+  .bot-id-sub { font-size: 0.75rem; color: var(--txt-3); display: flex; align-items: center; gap: 8px; }
+  .fleet-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 25px; }
+  .stat-pro-card { background: var(--grad-card); border: 1px solid rgba(255, 255, 255, 0.08); padding: 20px; border-radius: 18px; position: relative; overflow: hidden; box-shadow: var(--shadow-sm); }
+  .stat-pro-card .lbl { font-size: 0.7rem; color: var(--txt-3); text-transform: uppercase; font-weight: 800; letter-spacing: 0.05em; margin-bottom: 8px; }
+  .stat-pro-card .val { font-size: 1.4rem; font-weight: 700; font-family: 'Space Grotesk', sans-serif; margin-bottom: 4px; }
+  .stat-pro-card .val.good { color: var(--brand); }
+  .stat-pro-card .val.info { color: var(--info); }
+  .stat-pro-card .val.violet { color: var(--accent); }
+  .fleet-toolbar { background: rgba(255, 255, 255, 0.03); padding: 12px 15px; border-radius: 15px; border: 1px solid rgba(255, 255, 255, 0.06); display: flex; align-items: center; gap: 15px; margin-bottom: 25px; }
+  .fleet-search { flex: 1; position: relative; display: flex; align-items: center; }
+  .fleet-search .input { padding-left: 38px; background: rgba(0, 0, 0, 0.2); border-color: rgba(255, 255, 255, 0.08); }
+  .fleet-controls { display: flex; align-items: center; gap: 10px; }
+  .fleet-select { min-width: 140px; background: rgba(0, 0, 0, 0.2); font-size: 0.8rem; height: 38px; }
+  .fleet-chip-row { display: flex; gap: 8px; margin-bottom: 15px; flex-wrap: wrap; }
+  .fleet-chip { padding: 6px 12px; border-radius: 10px; background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.06); font-size: 0.75rem; font-weight: 700; cursor: pointer; transition: 0.2s; display: flex; align-items: center; gap: 6px; }
+  .fleet-chip.active { background: var(--brand-soft); border-color: var(--brand); color: var(--brand); }
+  .fleet-sync-note { font-size: 0.65rem; color: var(--txt-3); text-transform: uppercase; font-weight: 700; letter-spacing: 0.05em; }
+  
+  .pulse-dot { width: 8px; height: 8px; border-radius: 50%; position: relative; }
+  .pulse-dot.online { background: var(--brand); box-shadow: 0 0 10px var(--brand); }
+  .pulse-dot.online::after { content: ''; position: absolute; inset: 0; border-radius: 50%; background: var(--brand); animation: pulse-green 2s infinite; }
+  @keyframes pulse-green { 0% { transform: scale(1); opacity: 0.8; } 100% { transform: scale(3); opacity: 0; } }
+  .pulse-dot.offline { background: #6b7280; }
+  .pulse-dot.warming { background: var(--warn); animation: pulse-amber 1.5s infinite; }
+  @keyframes pulse-amber { 0%, 100% { opacity: 0.5; } 50% { opacity: 1; } }
+</style>
+
+<div class="page" id="page-users">
+  <div class="ph">
+    <div>
+      <div class="title" style="display:flex; align-items:center; gap:10px">
+        Fleet Orchestration <span class="badge blue" style="font-size:10px; letter-spacing:1px">PRO ENGINE</span>
+      </div>
+      <div class="desc">Monitor and orchestrate your entire multi-device bot fleet from one command center.</div>
+    </div>
+    <div class="actions">
+       <button class="btn btn-primary btn-sm" onclick="openAddSession()">+ Add Device</button>
+    </div>
+  </div>
+
+  <div class="fleet-stats" id="fleetStats">
+    <!-- Dynamic Stats -->
+  </div>
+
+  <div class="fleet-toolbar">
+    <div class="fleet-search">
+      <i class="ic" style="position:absolute;left:12px;width:16px;height:16px;opacity:0.4;-webkit-mask-image:url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22 fill=%22none%22 stroke=%22currentColor%22 stroke-width=%222%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22><circle cx=%2211%22 cy=%2211%22 r=%228%22/><line x1=%2221%22 y1=%2221%22 x2=%2216.65%22 y2=%2216.65%22/></svg>')"></i>
+      <input class="input" id="usersSearch" placeholder="Filter by name, number, owner, or ID..." oninput="renderUsersPage()" />
+    </div>
+    <div class="fleet-controls">
+      <select class="select fleet-select" id="fleetFilter" onchange="renderUsersPage()">
+        <option value="all">All Sessions</option>
+        <option value="connected">Connected</option>
+        <option value="transition">Pairing / Connecting</option>
+        <option value="offline">Offline</option>
+        <option value="private">Private Mode</option>
+        <option value="main">Main Controller</option>
+      </select>
+      <select class="select fleet-select" id="fleetSort" onchange="renderUsersPage()">
+        <option value="status">Sort by Status</option>
+        <option value="name">Sort by Name</option>
+        <option value="age">Sort by Uptime</option>
+      </select>
+      <button class="btn btn-secondary btn-sm" onclick="loadSessions()">Sync Fleet</button>
+    </div>
+  </div>
+
+  <div class="fleet-chip-row" id="fleetFilterChips"></div>
+
+  <div class="card" style="padding:0; overflow:hidden; border:1px solid rgba(255,255,255,0.08)">
+    <div class="table-wrap">
+      <table class="pro-table">
+        <thead>
+          <tr>
+            <th style="padding-left:20px">BOT IDENTITY</th>
+            <th>CONNECTION HEALTH</th>
+            <th>RUNTIME POLICY</th>
+            <th>PRIMARY OWNER</th>
+            <th style="text-align:right; padding-right:20px">OPERATIONS</th>
+          </tr>
+        </thead>
+        <tbody id="usersTable">
+          <tr><td colspan="5" style="text-align:center; padding:40px; color:var(--txt-3)">Synchronizing fleet data...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+function getFleetViewState() {
+  const q = (document.getElementById('usersSearch')?.value || '').trim().toLowerCase();
+  const filter = document.getElementById('fleetFilter')?.value || 'all';
+  const sort = document.getElementById('fleetSort')?.value || 'status';
+  return { q, filter, sort };
+}
+
+function isSessionConnected(session) {
+  return String(session?.status || '').toLowerCase() === 'connected';
+}
+
+function isSessionTransition(session) {
+  if (isSessionConnected(session)) return false;
+  const status = String(session?.status || '').toLowerCase();
+  return /(await|pair|scan|connect|restart|reconnect|initial)/.test(status);
+}
+
+function sessionStatusRank(session) {
+  if (isSessionConnected(session)) return 0;
+  if (isSessionTransition(session)) return 1;
+  return 2;
+}
+
+function matchesFleetFilter(session, filter) {
+  if (filter === 'connected') return isSessionConnected(session);
+  if (filter === 'transition') return isSessionTransition(session);
+  if (filter === 'offline') return !isSessionConnected(session) && !isSessionTransition(session);
+  if (filter === 'private') return String(session?.workMode || '').toLowerCase() === 'private';
+  if (filter === 'main') return session?.id === '__main__';
+  return true;
+}
+
+function renderFleetFilterChips(counters, activeFilter) {
+  const chipWrap = document.getElementById('fleetFilterChips');
+  if (!chipWrap) return;
+  const chips = [
+    { key: 'all', label: 'All' },
+    { key: 'connected', label: 'Connected' },
+    { key: 'transition', label: 'Transition' },
+    { key: 'offline', label: 'Offline' },
+    { key: 'private', label: 'Private' },
+    { key: 'main', label: 'Main' },
+  ];
+  chipWrap.innerHTML = chips.map((chip) => `
+    <div class="fleet-chip ${activeFilter === chip.key ? 'active' : ''}" onclick="setFleetFilter('${chip.key}')">
+      ${chip.label} <span class="count">${counters[chip.key] || 0}</span>
+    </div>
+  `).join('');
+}
+
+function setFleetFilter(filter) {
+  const select = document.getElementById('fleetFilter');
+  if (select) select.value = filter;
+  renderUsersPage();
+}
+
+function renderManagedUsers() {
+  const tb = document.getElementById('usersTable');
+  const statWrap = document.getElementById('fleetStats');
+  if (!tb) return;
+
+  const view = getFleetViewState();
+  const allSessions = State.data.sessions || [];
+  const counters = {
+    all: allSessions.length,
+    connected: allSessions.filter(isSessionConnected).length,
+    transition: allSessions.filter(isSessionTransition).length,
+    offline: allSessions.filter((s) => !isSessionConnected(s) && !isSessionTransition(s)).length,
+    private: allSessions.filter((s) => String(s.workMode || '').toLowerCase() === 'private').length,
+    main: allSessions.filter((s) => s.id === '__main__').length,
+  };
+  renderFleetFilterChips(counters, view.filter);
+
+  const list = allSessions.filter((s) => {
+    const haystack = [s.name, s.id, s.number, s.owner, s.workMode].filter(Boolean).join(' ').toLowerCase();
+    const queryMatch = !view.q || haystack.includes(view.q);
+    return queryMatch && matchesFleetFilter(s, view.filter);
+  });
+
+  if (view.sort === 'name') {
+    list.sort((a, b) => String(a.name || a.id || '').localeCompare(String(b.name || b.id || '')));
+  } else if (view.sort === 'age') {
+    list.sort((a, b) => getSessionAgeSeconds(b) - getSessionAgeSeconds(a));
+  } else {
+    list.sort((a, b) => {
+      const rank = sessionStatusRank(a) - sessionStatusRank(b);
+      if (rank !== 0) return rank;
+      return String(a.name || a.id || '').localeCompare(String(b.name || b.id || ''));
+    });
+  }
+
+  if (statWrap) {
+    const totalCount = allSessions.length;
+    const liveCoverage = totalCount ? Math.round((counters.connected / totalCount) * 100) : 0;
+    const totalMsgs = allSessions.reduce((acc, s) => acc + (s.processedCount || 0), 0);
+    const totalCmds = allSessions.reduce((acc, s) => acc + (s.commandsCount || 0), 0);
+    statWrap.innerHTML = `
+      <div class="stat-pro-card">
+        <div class="lbl">Fleet Live</div>
+        <div class="val" style="color:var(--brand)">${counters.connected} / ${totalCount}</div>
+        <div class="text-xs dim">${liveCoverage}% connected</div>
+      </div>
+      <div class="stat-pro-card">
+        <div class="lbl">Messages</div>
+        <div class="val" style="color:var(--info)">${totalMsgs.toLocaleString()}</div>
+        <div class="text-xs dim">Fleet-wide total</div>
+      </div>
+      <div class="stat-pro-card">
+        <div class="lbl">Commands</div>
+        <div class="val" style="color:var(--accent)">${totalCmds.toLocaleString()}</div>
+        <div class="text-xs dim">Executions</div>
+      </div>
+      <div class="stat-pro-card">
+        <div class="lbl">Private Pool</div>
+        <div class="val">${counters.private}</div>
+        <div class="text-xs dim">Isolated instances</div>
+      </div>
+    `;
+  }
+
+  if (!list.length) {
+    tb.innerHTML = `<tr><td colspan="5" style="text-align:center; padding:40px; color:var(--txt-3)">No bots matched the current search and filters.</td></tr>`;
+    return;
+  }
+
+  tb.innerHTML = list.map((s) => {
+    const isMain = s.id === '__main__';
+    const connected = isSessionConnected(s);
+    const transition = isSessionTransition(s);
+    const label = s.name || (isMain ? 'Main Controller' : `Sub-Bot ${s.id}`);
+    const pulseCls = connected ? 'online' : (transition ? 'warming' : 'offline');
+    const uptimeSec = getSessionAgeSeconds(s);
+    const workMode = String(s.workMode || 'public').toLowerCase();
+    const safeId = escapeHtml(s.id);
+
+    return `<tr>
+      <td style="padding-left:20px">
+        <div class="bot-id-cell">
+          <div class="bot-id-main">
+            <div class="pulse-dot ${pulseCls}"></div>
+            <strong>${escapeHtml(label)}</strong>
+            ${isMain ? '<span class="badge violet">PRIMARY</span>' : '<span class="badge gray">AUX</span>'}
+          </div>
+          <div class="bot-id-sub">
+            <span class="mono">${escapeHtml(s.number || 'No link')}</span>
+          </div>
+        </div>
+      </td>
+      <td>
+        <div style="font-weight:700; color:${connected ? 'var(--brand)' : transition ? 'var(--warn)' : 'var(--txt-3)'}">${(s.status || 'Offline').toUpperCase()}</div>
+        <div class="text-xs dim">${uptimeSec > 0 ? fmtUptime(uptimeSec) : 'No uptime'}</div>
+      </td>
+      <td><span class="badge ${workMode === 'private' ? 'violet' : 'blue'}">${workMode.toUpperCase()}</span></td>
+      <td><span class="text-xs mono">${escapeHtml(s.owner || 'System')}</span></td>
+      <td style="text-align:right; padding-right:20px">
+        <div class="actions" style="justify-content:flex-end; gap:6px">
+          <button class="btn btn-secondary btn-sm" onclick="openBotSettings('${safeId}')">Manage</button>
+          ${!connected ? `<button class="btn btn-ghost btn-sm" onclick="openQrFor('${safeId}')">QR</button>` : ''}
+          ${!isMain ? `<button class="btn btn-danger btn-sm" onclick="removeSession('${safeId}')">Wipe</button>` : ''}
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function renderUsersPage() {
+  renderManagedUsers();
+}
+
+function initUsersTab() {
+  renderManagedUsers();
+}
+
+window.initUsersTab = initUsersTab;
+window.renderUsersPage = renderUsersPage;
+window.setFleetFilter = setFleetFilter;
+</script>

@@ -1,0 +1,176 @@
+<style>
+  .ar-grid { display: grid; grid-template-columns: 400px 1fr; gap: 28px; }
+  .ar-table-card { padding: 0; overflow: hidden; border: 1px solid var(--line-2); border-radius: var(--r-lg); background: var(--panel-2); }
+  .pro-table { width: 100%; border-collapse: collapse; }
+  .pro-table th { background: rgba(255, 255, 255, 0.03); padding: 14px 20px; text-align: left; font-size: 0.7rem; color: var(--txt-3); text-transform: uppercase; letter-spacing: 1px; border-bottom: 1px solid var(--line-3); }
+  .pro-table td { padding: 16px 20px; border-bottom: 1px solid var(--line-2); font-size: 0.9rem; }
+  
+  .trig-pill { display: inline-block; padding: 4px 10px; border-radius: 8px; background: var(--brand-soft); color: var(--brand); font-family: 'JetBrains Mono', monospace; font-weight: 700; font-size: 0.85rem; }
+  .resp-text { color: var(--txt-2); font-size: 0.85rem; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+</style>
+
+<div class="page" id="page-autoreply">
+  <div class="ph">
+    <div>
+      <div class="title">Auto-Reply Engine</div>
+      <div class="desc">Create automated responses based on specific message triggers and patterns.</div>
+    </div>
+    <div class="actions">
+      <button class="btn btn-secondary btn-sm" onclick="loadAutoReplies()">Refresh</button>
+    </div>
+  </div>
+
+  <div class="ar-grid">
+    <div class="ar-form">
+      <div class="card">
+        <div class="card-h"><div class="title" id="arFormTitle">New Rule</div></div>
+        <div class="field"><label>Trigger Pattern</label><input class="input" id="arTrig" placeholder="e.g. price, help, info" /></div>
+        <div class="field">
+          <label>Match Strategy</label>
+          <select class="select" id="arMatch">
+            <option value="exact">Exact Match</option>
+            <option value="contains">Contains Pattern</option>
+            <option value="startsWith">Starts With</option>
+            <option value="regex">Regex (Advanced)</option>
+          </select>
+        </div>
+        <div class="field"><label>Response Message</label><textarea class="textarea" id="arResp" rows="5" placeholder="Type the automated response..."></textarea></div>
+        
+        <div class="grid grid-2 mt-3">
+          <div class="control-row" style="padding:10px">
+            <div class="info" style="margin:0"><b style="font-size:0.8rem">Groups Only</b></div>
+            <span class="switch"><input type="checkbox" id="arGroupsOnly" /><span class="slider"></span></span>
+          </div>
+          <div class="control-row" style="padding:10px">
+            <div class="info" style="margin:0"><b style="font-size:0.8rem">Direct Only</b></div>
+            <span class="switch"><input type="checkbox" id="arPmOnly" /><span class="slider"></span></span>
+          </div>
+        </div>
+        
+        <div class="row mt-4" style="justify-content:flex-end; gap:10px">
+          <button class="btn btn-secondary btn-sm" onclick="resetAutoReplyForm()">Clear</button>
+          <button class="btn btn-primary btn-sm" onclick="saveAutoReply()">Create Rule</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="ar-table-card">
+      <table class="pro-table">
+        <thead>
+          <tr>
+            <th>Trigger</th>
+            <th>Response</th>
+            <th style="text-align:right">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="arTable">
+          <tr><td colspan="3" style="text-align:center; padding:40px; color:var(--txt-3)">Loading automated rules...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+async function loadAutoReplies() {
+  try {
+    const res = await api('/bot-api/autoreply');
+    State.data.autoReplies = res;
+    renderAutoReplies();
+  } catch (e) { }
+}
+
+function renderAutoReplies() {
+  const tb = document.getElementById('arTable');
+  if (!tb) return;
+  
+  const rules = State.data.autoReplies || [];
+  if (rules.length === 0) {
+    tb.innerHTML = `<tr><td colspan="3" style="text-align:center; padding:40px; color:var(--txt-3)">No auto-reply rules created.</td></tr>`;
+    return;
+  }
+
+  tb.innerHTML = rules.map((r, i) => `
+    <tr>
+      <td>
+        <div class="trig-pill">${escapeHtml(r.trigger)}</div>
+        <div class="text-xs dim mt-1">${r.matchType.toUpperCase()} • ${r.groupsOnly ? 'GROUPS' : r.pmOnly ? 'DIRECT' : 'GLOBAL'}</div>
+      </td>
+      <td><div class="resp-text">${escapeHtml(r.response)}</div></td>
+      <td style="text-align:right">
+        <button class="btn btn-secondary btn-sm" onclick="editAutoReply(${i})">Edit</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteAutoReply(${i})">Wipe</button>
+      </td>
+    </tr>
+  `).join('');
+}
+
+let editingArIndex = -1;
+
+function editAutoReply(index) {
+  const r = State.data.autoReplies[index];
+  if (!r) return;
+  editingArIndex = index;
+  document.getElementById('arFormTitle').textContent = 'Editing Rule: ' + r.trigger;
+  document.getElementById('arTrig').value = r.trigger;
+  document.getElementById('arMatch').value = r.matchType || 'exact';
+  document.getElementById('arResp').value = r.response || '';
+  document.getElementById('arGroupsOnly').checked = !!r.groupsOnly;
+  document.getElementById('arPmOnly').checked = !!r.pmOnly;
+}
+
+function resetAutoReplyForm() {
+  editingArIndex = -1;
+  document.getElementById('arFormTitle').textContent = 'New Rule';
+  document.getElementById('arTrig').value = '';
+  document.getElementById('arMatch').value = 'exact';
+  document.getElementById('arResp').value = '';
+  document.getElementById('arGroupsOnly').checked = false;
+  document.getElementById('arPmOnly').checked = false;
+}
+
+async function saveAutoReply() {
+  const trigger = document.getElementById('arTrig').value.trim();
+  const response = document.getElementById('arResp').value.trim();
+  if (!trigger || !response) return toast('Trigger and Response are required', 'error');
+
+  const payload = {
+    trigger,
+    response,
+    matchType: document.getElementById('arMatch').value,
+    groupsOnly: document.getElementById('arGroupsOnly').checked,
+    pmOnly: document.getElementById('arPmOnly').checked,
+    index: editingArIndex
+  };
+
+  try {
+    await api('/bot-api/autoreply', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+    toast(editingArIndex >= 0 ? 'Rule updated' : 'Rule created', 'success');
+    loadAutoReplies();
+    resetAutoReplyForm();
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+async function deleteAutoReply(index) {
+  if (!await confirmDialog('Delete this auto-reply rule?', { okText: 'Delete', danger: true })) return;
+  try {
+    await api(`/bot-api/autoreply/${index}`, { method: 'DELETE' });
+    toast('Rule deleted', 'success');
+    loadAutoReplies();
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+function initAutoreplyTab() {
+  loadAutoReplies();
+}
+
+window.initAutoreplyTab = initAutoreplyTab;
+window.renderAutoReplies = renderAutoReplies;
+window.editAutoReply = editAutoReply;
+window.saveAutoReply = saveAutoReply;
+window.resetAutoReplyForm = resetAutoReplyForm;
+window.deleteAutoReply = deleteAutoReply;
+</script>

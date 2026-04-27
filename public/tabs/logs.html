@@ -1,0 +1,108 @@
+<style>
+  .log-stream {
+    background: linear-gradient(180deg, rgba(4, 8, 14, .96), rgba(5, 9, 15, .92));
+    border: 1px solid rgba(255, 255, 255, .08);
+    border-radius: 18px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: .78rem;
+    line-height: 1.65;
+    max-height: 65vh;
+    overflow-y: auto;
+    padding: 16px 18px;
+    box-shadow: var(--shadow-sm), inset 0 1px 0 rgba(255, 255, 255, .03);
+  }
+  .log-line {
+    padding: 3px 0;
+    display: flex;
+    gap: 12px;
+    color: var(--txt-2);
+  }
+  .log-line .t {
+    color: var(--txt-3);
+    flex-shrink: 0;
+    font-weight: 500;
+  }
+  .log-line .m {
+    flex: 1;
+    word-break: break-word;
+  }
+</style>
+
+<div class="page" id="page-logs">
+  <div class="ph">
+    <div>
+      <div class="title">Live Logs</div>
+      <div class="desc">Real-time system telemetry and bot activity stream</div>
+    </div>
+    <div class="actions">
+      <div class="stat-pill" style="background: rgba(139, 92, 246, 0.1); color: #a78bfa; border: 1px solid rgba(139, 92, 246, 0.2);">
+         <span class="status-pulse online" style="background: #a78bfa; box-shadow: 0 0 8px #a78bfa;" id="logSocketStatusPulse"></span>
+         <span style="font-size: 0.65rem; font-weight: 800; letter-spacing: 0.05em;" id="logSocketStatusText">STREAMING</span>
+      </div>
+      <button class="btn btn-secondary btn-sm" onclick="loadLogs()">Refresh</button>
+      <button class="btn btn-danger btn-sm" onclick="clearLogs()">Clear</button>
+    </div>
+  </div>
+  <div class="card" style="padding:0">
+    <div class="log-stream" id="logsStream"
+      style="max-height:none;height:65vh;border:none;border-radius:var(--r-lg)"></div>
+  </div>
+</div>
+
+<script>
+async function loadLogs() {
+  try {
+    const list = await api('/bot-api/logs?limit=200'); // newest-first from API
+    State.data.logs = list.slice().reverse();
+    renderLogs();
+  } catch (e) { /* silent */ }
+}
+function renderLogs() {
+  const stream = document.getElementById('logsStream');
+  if (stream) {
+    stream.innerHTML = State.data.logs.map(logLineHtml).join('');
+    stream.scrollTop = stream.scrollHeight;
+  }
+  const dash = document.getElementById('dashLogs');
+  if (dash) { 
+    dash.innerHTML = State.data.logs.slice(-30).map(logLineHtml).join(''); 
+    dash.scrollTop = dash.scrollHeight; 
+  }
+}
+function appendLogLine(entry) {
+  if (!entry) return;
+  const html = logLineHtml(entry);
+  ['logsStream', 'dashLogs'].forEach(id => {
+    const el = document.getElementById(id); if (!el) return;
+    el.insertAdjacentHTML('beforeend', html);
+    while (el.children.length > 500) el.firstChild.remove();
+    el.scrollTop = el.scrollHeight;
+  });
+}
+function logLineHtml(e) {
+  if (!e) return '';
+  const t = (e.time || '').split('T')[1]?.split('.')[0] || '';
+  const msg = e.message || '';
+  let cls = '';
+  if (/error|crash|fail/i.test(msg)) cls = 'style="color:#fca5a5"';
+  else if (/connected|ready|loaded|success/i.test(msg)) cls = 'style="color:#86efac"';
+  else if (/qr|warn|alert/i.test(msg)) cls = 'style="color:#fcd34d"';
+  return `<div class="log-line"><span class="t">${escapeHtml(t)}</span><span class="m" ${cls}>${escapeHtml(msg)}</span></div>`;
+}
+async function clearLogs() {
+  if (!await confirmDialog('Clear all logs?', { okText: 'Clear', danger: true })) return;
+  try { await api('/bot-api/logs', { method: 'DELETE' }); State.data.logs = []; renderLogs(); toast('Logs cleared', 'success'); }
+  catch (e) { toast(e.message, 'error'); }
+}
+
+function initLogsTab() {
+  loadLogs();
+}
+
+window.initLogsTab = initLogsTab;
+window.loadLogs = loadLogs;
+window.renderLogs = renderLogs;
+window.appendLogLine = appendLogLine;
+window.logLineHtml = logLineHtml;
+window.clearLogs = clearLogs;
+</script>

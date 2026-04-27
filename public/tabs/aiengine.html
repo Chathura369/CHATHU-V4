@@ -1,0 +1,338 @@
+<style>
+  .neural-glow {
+    position: absolute;
+    top: -100px;
+    right: -100px;
+    width: 300px;
+    height: 300px;
+    background: radial-gradient(circle, rgba(124, 77, 255, 0.15) 0%, transparent 70%);
+    pointer-events: none;
+    z-index: -1;
+    filter: blur(40px);
+  }
+  .ai-template-btn {
+    padding: 6px 12px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: var(--txt-2);
+    font-size: 0.75rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: 0.2s;
+  }
+  .ai-template-btn:hover {
+    background: rgba(124, 77, 255, 0.15);
+    border-color: var(--primary-glow);
+    color: var(--txt);
+    transform: translateY(-2px);
+  }
+  .provider-card {
+    padding: 12px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    transition: 0.2s;
+  }
+  .provider-card.active {
+    background: rgba(34, 197, 94, 0.05);
+    border-color: rgba(34, 197, 94, 0.2);
+  }
+  .provider-card .icon-box {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+  }
+</style>
+
+<div class="page" id="page-aiengine">
+  <div class="ph">
+    <div>
+      <div class="title">AI Engine</div>
+      <div class="desc">Neural network personality, voice, and language settings</div>
+    </div>
+    <div class="actions">
+       <div class="stat-pill">
+          <span class="status-pulse online"></span>
+          <span id="aiEngineStatus">AI CORE ACTIVE</span>
+       </div>
+    </div>
+  </div>
+
+  <!-- Neural Metrics Grid -->
+  <div class="grid grid-4 mb-4">
+    <div class="stat" style="--accent-color: #10b981">
+      <div class="top"><div class="label">AI Engine Status</div><i class="ic" style="width:18px; height:18px; background:#10b981; -webkit-mask-image:url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22 fill=%22none%22 stroke=%22currentColor%22 stroke-width=%222%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22><path d=%22M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z%22/></svg>')"></i></div>
+      <div class="v" id="aiStatStatus">ONLINE</div>
+      <div class="s">Core Readiness</div>
+    </div>
+    <div class="stat" style="--accent-color: #3b82f6">
+      <div class="top"><div class="label">Auto-Reply Traffic</div><i class="ic" style="width:18px; height:18px; background:#3b82f6; -webkit-mask-image:url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22 fill=%22none%22 stroke=%22currentColor%22 stroke-width=%222%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22><path d=%22M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 1 1-7.6-11.7 8.38 8.38 0 0 1 3.8.9%22/><path d=%22M22 4L12 14.01l-3-3%22/></svg>')"></i></div>
+      <div class="v" id="aiStatTraffic">0</div>
+      <div class="s">Messages Processed</div>
+    </div>
+    <div class="stat" style="--accent-color: #8b5cf6">
+      <div class="top"><div class="label">Daily Tokens</div><i class="ic" style="width:18px; height:18px; background:#8b5cf6; -webkit-mask-image:url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22 fill=%22none%22 stroke=%22currentColor%22 stroke-width=%222%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22><path d=%22M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6%22/></svg>')"></i></div>
+      <div class="v" id="aiStatTokens">STABLE</div>
+      <div class="s">Estimated Load</div>
+    </div>
+    <div class="stat" style="--accent-color: #f59e0b">
+      <div class="top"><div class="label">Engine Stability</div><i class="ic" style="width:18px; height:18px; background:#f59e0b; -webkit-mask-image:url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22 fill=%22none%22 stroke=%22currentColor%22 stroke-width=%222%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22><circle cx=%2212%22 cy=%2212%22 r=%2210%22/><line x1=%2212%22 y1=%228%22 x2=%2212%22 y2=%2212%22/><line x1=%2212%22 y1=%2216%22 x2=%2212.01%22 y2=%2216%22/></svg>')"></i></div>
+      <div class="v" id="aiStatStability">99.9%</div>
+      <div class="s">Uptime Status</div>
+    </div>
+  </div>
+
+  <div class="grid grid-2">
+     <!-- Persona & Configuration -->
+     <div class="card">
+        <div class="card-h">
+           <div class="title">Intelligence & Personality</div>
+        </div>
+        <div class="field">
+           <label>Enable AI Auto-Reply</label>
+           <label class="row" style="padding:12px;border:1px solid var(--line-2);border-radius:var(--r);justify-content:space-between">
+              <span><b>Master Toggle</b><br /><span class="text-xs dim">Automatically reply to incoming messages</span></span>
+              <span class="switch"><input type="checkbox" id="aiSetAutoReply" /><span class="slider"></span></span>
+           </label>
+        </div>
+        <div class="grid grid-2">
+           <div class="field">
+              <label>AI Persona</label>
+              <select class="select input" id="aiSetPersona">
+                 <option value="friendly">Friendly Friend (හිතවත්)</option>
+                 <option value="funny">Funny (විහිළු තහළු)</option>
+                 <option value="savage">Savage (ටිකක් සැර)</option>
+              </select>
+           </div>
+           <div class="field">
+              <label>AI Language</label>
+              <select class="select input" id="aiSetLang">
+                 <option value="mixed">Mixed (Sinhala + English)</option>
+                 <option value="english">English Only</option>
+                 <option value="sinhala">Sinhala Only</option>
+              </select>
+           </div>
+        </div>
+        <div class="field mt-3">
+           <label>Group Interaction Mode</label>
+           <select class="select input" id="aiSetGroupMode">
+              <option value="mention">Mention Only (Tagged or Replied)</option>
+              <option value="always">Always Reply (Listen to all messages)</option>
+           </select>
+        </div>
+        <label class="row mt-3" style="padding:12px;border:1px solid var(--line-2);border-radius:var(--r);justify-content:space-between">
+           <span><b>Voice Responses</b><br /><span class="text-xs dim">Reply using AI-generated voice notes</span></span>
+           <span class="switch"><input type="checkbox" id="aiSetVoice" /><span class="slider"></span></span>
+        </label>
+        <div class="row" style="justify-content:flex-end;margin-top:20px;gap:10px">
+           <button class="btn btn-danger btn-sm" onclick="clearAiHistory()">Clear Memory</button>
+           <button class="btn btn-primary btn-sm" onclick="saveAiSettings()">Update Engine</button>
+        </div>
+     </div>
+
+     <!-- API Key Management -->
+     <div class="card">
+        <div class="card-h">
+           <div class="title">Engine Providers</div>
+        </div>
+        
+        <div class="stack gap-3 mb-4">
+           <div class="provider-card" id="provGemini">
+              <div class="icon-box" style="background: rgba(26, 115, 232, 0.1); color: #4285f4;">G</div>
+              <div style="flex:1">
+                 <div style="font-weight:700; font-size:0.85rem">Google Gemini</div>
+                 <div class="text-xs dim" id="statusGemini">Checking...</div>
+              </div>
+              <span class="badge" id="badgeGemini">--</span>
+           </div>
+           <div class="provider-card" id="provOpenRouter">
+              <div class="icon-box" style="background: rgba(124, 77, 255, 0.1); color: #7c4dff;">O</div>
+              <div style="flex:1">
+                 <div style="font-weight:700; font-size:0.85rem">OpenRouter AI</div>
+                 <div class="text-xs dim" id="statusOpenRouter">Checking...</div>
+              </div>
+              <span class="badge" id="badgeOpenRouter">--</span>
+           </div>
+           <div class="provider-card" id="provGroq">
+              <div class="icon-box" style="background: rgba(245, 158, 11, 0.1); color: #f59e0b;">G</div>
+              <div style="flex:1">
+                 <div style="font-weight:700; font-size:0.85rem">Groq Cloud</div>
+                 <div class="text-xs dim" id="statusGroq">Checking...</div>
+              </div>
+              <span class="badge" id="badgeGroq">--</span>
+           </div>
+        </div>
+
+        <div class="notice">
+           <strong>Credential Vault</strong>
+           Update your security keys below. Changes take effect instantly.
+        </div>
+        <div class="field mt-3">
+           <label>Gemini API Key</label>
+           <input class="input" type="password" id="keyGemini" placeholder="AIzaSy..." />
+        </div>
+        <div class="field">
+           <label>OpenRouter Key</label>
+           <input class="input" type="password" id="keyOpenRouter" placeholder="sk-or-v1-..." />
+        </div>
+        <div class="field">
+           <label>Groq API Key</label>
+           <input class="input" type="password" id="keyGroq" placeholder="gsk_..." />
+        </div>
+        <div class="row" style="justify-content:flex-end;margin-top:20px">
+           <button class="btn btn-secondary btn-sm" onclick="saveApiKeys()">Update Vault</button>
+        </div>
+     </div>
+  </div>
+</div>
+
+<script>
+async function loadAiEngine() {
+  try {
+    const list = await api('/bot-api/sessions');
+    const main = list.find(s => s.id === '__main__');
+    if (!main) return;
+    
+    const arEl = document.getElementById('aiSetAutoReply');
+    if (arEl) arEl.checked = !!main.aiAutoReply;
+    const perEl = document.getElementById('aiSetPersona');
+    if (perEl) perEl.value = main.aiAutoPersona || 'friendly';
+    const langEl = document.getElementById('aiSetLang');
+    if (langEl) langEl.value = main.aiAutoLang || 'mixed';
+    const voiceEl = document.getElementById('aiSetVoice');
+    if (voiceEl) voiceEl.checked = !!main.aiAutoVoice;
+    const gModeEl = document.getElementById('aiSetGroupMode');
+    if (gModeEl) gModeEl.value = main.aiGroupMode || 'mention';
+    
+    // Provider Cards
+    const ks = main.aiKeysStatus || {};
+    const updateProv = (id, active) => {
+       const card = document.getElementById('prov' + id);
+       const status = document.getElementById('status' + id);
+       const badge = document.getElementById('badge' + id);
+       if (card) card.classList.toggle('active', active);
+       if (status) status.textContent = active ? 'Service Active' : 'Key Missing / Inactive';
+       if (badge) {
+         badge.className = 'badge ' + (active ? 'green' : 'gray');
+         badge.innerHTML = active ? '<span class="dot"></span>READY' : 'OFFLINE';
+       }
+    };
+    updateProv('Gemini', ks.gemini);
+    updateProv('OpenRouter', ks.openrouter);
+    updateProv('Groq', ks.groq);
+
+    // Perform Live Validation
+    (async () => {
+       try {
+          const live = await api('/bot-api/bot/check-ai-keys', { silent: true });
+          updateProv('Gemini', live.gemini);
+          updateProv('OpenRouter', live.openrouter);
+          updateProv('Groq', live.groq);
+       } catch (e) { /* silent fail for background check */ }
+    })();
+
+    const engStatEl = document.getElementById('aiEngineStatus');
+    if (engStatEl) engStatEl.textContent = main.aiAutoReply ? 'AI AUTO-REPLY ON' : 'AI AUTO-REPLY OFF';
+    
+    // Populate Metric Cards
+    setText('aiStatStatus', (ks.gemini || ks.openrouter || ks.groq) ? 'ONLINE' : 'OFFLINE');
+    setText('aiStatTraffic', main.processedCount || 0);
+    setText('aiStatTokens', 'STABLE');
+    const uptime = getSessionAgeSeconds(main);
+    setText('aiStatStability', uptime > 0 ? fmtUptime(uptime) : '99.9%');
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+async function saveAiSettings() {
+  const arEl = document.getElementById('aiSetAutoReply');
+  const perEl = document.getElementById('aiSetPersona');
+  const langEl = document.getElementById('aiSetLang');
+  const voiceEl = document.getElementById('aiSetVoice');
+  const gModeEl = document.getElementById('aiSetGroupMode');
+  if (!arEl || !perEl || !langEl || !voiceEl || !gModeEl) return;
+
+  const payload = {
+    aiAutoReply: arEl.checked,
+    aiAutoPersona: perEl.value,
+    aiAutoLang: langEl.value,
+    aiAutoVoice: voiceEl.checked,
+    aiGroupMode: gModeEl.value,
+    aiSystemInstruction: State.data.sessions.find(s => s.id === '__main__')?.aiSystemInstruction || '',
+    aiMaxWords: State.data.sessions.find(s => s.id === '__main__')?.aiMaxWords || 30
+  };
+  
+  try {
+    // Update Session Settings (for UI consistency and immediate effect)
+    await api('/bot-api/sessions/__main__/settings', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+
+    // Update Global Settings (to persist canonical values)
+    await api('/bot-api/settings', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+
+    toast('AI Engine settings updated & synced', 'success');
+    loadAiEngine();
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+async function clearAiHistory() {
+  if (!await confirmDialog('Clear all AI conversation history? This will reset the bot\'s memory for all chats.', { okText: 'Clear Memory', danger: true })) return;
+  try {
+    await api('/bot-api/bot/ai-history', { method: 'DELETE' });
+    toast('AI conversation memory cleared', 'success');
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+async function saveApiKeys() {
+  const geminiEl = document.getElementById('keyGemini');
+  const orEl = document.getElementById('keyOpenRouter');
+  const groqEl = document.getElementById('keyGroq');
+  if (!geminiEl || !orEl || !groqEl) return;
+
+  const payload = {
+    gemini: geminiEl.value,
+    openrouter: orEl.value,
+    groq: groqEl.value,
+  };
+  
+  if (!payload.gemini && !payload.openrouter && !payload.groq) {
+     return toast('Enter at least one API key', 'error');
+  }
+
+  try {
+    await api('/bot-api/bot/api-keys', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+    toast('API keys secured and updated', 'success');
+    geminiEl.value = '';
+    orEl.value = '';
+    groqEl.value = '';
+    
+    // Refresh status immediately
+    setTimeout(loadAiEngine, 500);
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+function initAiengineTab() {
+  loadAiEngine();
+}
+
+window.initAiengineTab = initAiengineTab;
+window.loadAiEngine = loadAiEngine;
+window.saveAiSettings = saveAiSettings;
+window.clearAiHistory = clearAiHistory;
+window.saveApiKeys = saveApiKeys;
+</script>

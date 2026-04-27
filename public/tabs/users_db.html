@@ -1,0 +1,343 @@
+<style>
+  .user-avatar { width: 40px; height: 40px; border-radius: 12px; background: var(--grad-card); display: flex; align-items: center; justify-content: center; font-weight: 700; color: var(--brand); border: 1px solid rgba(255, 255, 255, 0.08); font-family: 'Space Grotesk', sans-serif; }
+  .user-avatar.owner { background: var(--grad-accent); color: #fff; border-color: rgba(124, 58, 237, 0.4); box-shadow: 0 4px 15px rgba(124, 58, 237, 0.2); }
+  .user-id-cell { display: flex; align-items: center; gap: 14px; }
+  .user-activity { display: flex; align-items: center; gap: 6px; font-size: 0.7rem; color: var(--txt-3); margin-top: 2px; }
+  .activity-dot { width: 6px; height: 6px; border-radius: 50%; background: #6b7280; }
+  .activity-dot.active { background: #10b981; box-shadow: 0 0 8px #10b981; }
+  .money-pill { padding: 4px 10px; border-radius: 8px; background: rgba(0, 255, 136, 0.05); border: 1px solid rgba(0, 255, 136, 0.1); color: var(--brand); font-weight: 700; font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; }
+</style>
+
+<div class="page" id="page-users_db">
+  <div class="ph">
+    <div>
+      <div class="title">User Management</div>
+    </div>
+    <div class="actions">
+      <div class="fleet-search">
+        <i class="ic"
+          style="-webkit-mask-image:url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22 fill=%22none%22 stroke=%22currentColor%22 stroke-width=%222%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22><circle cx=%2211%22 cy=%2211%22 r=%228%22/><line x1=%2221%22 y1=%2221%22 x2=%2216.65%22 y2=%2216.65%22/></svg>')"></i>
+        <input class="input" id="usersDbSearch" placeholder="Search users..." oninput="renderUsers()" />
+      </div>
+    </div>
+  </div>
+  <div id="usersDbStats" style="display:none"></div>
+
+  <div class="user-management-header"
+    style="background: var(--panel); border: 1px solid var(--line-2); border-radius: 20px; padding: 20px; margin-bottom: 24px; backdrop-filter: blur(20px); box-shadow: var(--shadow-lg)">
+    <div
+      style="display: flex; flex-wrap: wrap; gap: 24px; align-items: center; justify-content: space-between">
+
+      <!-- Left: Stats Block -->
+      <div style="display: flex; gap: 24px; align-items: center">
+        <div class="mini-stat">
+          <div
+            style="font-size: 0.6rem; color: var(--txt-3); text-transform: uppercase; font-weight: 800; letter-spacing: 0.1em; margin-bottom: 4px">
+            Database Size</div>
+          <div id="statTotalUsers"
+            style="font-size: 1.4rem; font-weight: 800; color: var(--brand); line-height: 1">0</div>
+        </div>
+        <div style="width: 1px; height: 30px; background: var(--line-2)"></div>
+        <div class="mini-stat">
+          <div
+            style="font-size: 0.6rem; color: var(--txt-3); text-transform: uppercase; font-weight: 800; letter-spacing: 0.1em; margin-bottom: 4px">
+            Active Users</div>
+          <div id="statActiveUsers"
+            style="font-size: 1.4rem; font-weight: 800; color: var(--info); line-height: 1">0</div>
+        </div>
+        <div style="width: 1px; height: 30px; background: var(--line-2)"></div>
+        <div class="mini-stat">
+          <div
+            style="font-size: 0.6rem; color: var(--txt-3); text-transform: uppercase; font-weight: 800; letter-spacing: 0.1em; margin-bottom: 4px">
+            Verified Owners</div>
+          <div id="statOwnerUsers"
+            style="font-size: 1.4rem; font-weight: 800; color: var(--accent-2); line-height: 1">0</div>
+        </div>
+      </div>
+
+      <!-- Right: Quick Register Block -->
+      <div
+        style="display: flex; gap: 12px; align-items: flex-end; background: rgba(255,255,255,0.03); padding: 12px 16px; border-radius: 16px; border: 1px solid var(--line-2)">
+        <div class="field" style="margin: 0">
+          <label style="font-size: 0.6rem; margin-bottom: 6px">Quick Register (Phone)</label>
+          <input class="input" id="newUserNumber" placeholder="947XXXXXXXX"
+            style="width: 160px; height: 38px; font-size: 0.85rem; background: rgba(0,0,0,0.2)" />
+        </div>
+        <div class="field" style="margin: 0">
+          <label style="font-size: 0.6rem; margin-bottom: 6px">Initial Role</label>
+          <select class="select input" id="newUserRole"
+            style="width: 130px; height: 38px; font-size: 0.85rem; background: rgba(0,0,0,0.2)">
+            <option value="standard">Standard</option>
+            <option value="premium">Premium</option>
+            <option value="owner">Owner</option>
+          </select>
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="addNewUser()"
+          style="height: 38px; padding: 0 16px; border-radius: 10px; font-size: 0.8rem; font-weight: 800">
+          <i class="ic"
+            style="width:14px; height:14px; -webkit-mask-image:url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22 fill=%22none%22 stroke=%22currentColor%22 stroke-width=%223%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22><path d=%22M12 5v14M5 12h14%22/></svg>')"></i>
+          ADD
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="card pro-card"
+    style="padding:0; overflow:hidden; background: var(--panel); border: 1px solid var(--line-2); backdrop-filter: blur(20px); box-shadow: var(--shadow-lg)">
+    <div class="table-wrap">
+      <table class="pro-table" style="border-collapse: collapse; width: 100%">
+        <thead>
+          <tr style="background: rgba(255,255,255,0.02)">
+            <th
+              style="padding: 18px 20px; color: var(--txt-3); text-transform: uppercase; font-size: 0.65rem; font-weight: 800; letter-spacing: 0.1em; border-bottom: 1px solid var(--line-2)">
+              USER IDENTITY</th>
+            <th
+              style="padding: 18px 20px; color: var(--txt-3); text-transform: uppercase; font-size: 0.65rem; font-weight: 800; letter-spacing: 0.1em; border-bottom: 1px solid var(--line-2)">
+              CREDITS & WALLET</th>
+            <th
+              style="padding: 18px 20px; color: var(--txt-3); text-transform: uppercase; font-size: 0.65rem; font-weight: 800; letter-spacing: 0.1em; border-bottom: 1px solid var(--line-2)">
+              AUTHORIZATION</th>
+            <th
+              style="padding: 18px 20px; color: var(--txt-3); text-transform: uppercase; font-size: 0.65rem; font-weight: 800; letter-spacing: 0.1em; border-bottom: 1px solid var(--line-2); text-align:right">
+              ACTIONS</th>
+          </tr>
+        </thead>
+        <tbody id="usersDbTable">
+          <tr>
+            <td colspan="5" class="empty-row loading">Synchronizing secure user database...</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+function findManagedUserEntry(jid) {
+  const target = String(jid || '').trim();
+  return (State.data.users || []).find((entry) => entry.jid === target || entry.realJid === target) || null;
+}
+
+function getManagedUserKey(user) {
+  if (!user) return '';
+  return user.realJid || user.jid || '';
+}
+
+function upsertManagedUser(user) {
+  if (!user?.jid) return null;
+  const userKey = getManagedUserKey(user);
+  const index = State.data.users.findIndex((entry) => entry.jid === user.jid || getManagedUserKey(entry) === userKey);
+  if (index >= 0) State.data.users[index] = { ...State.data.users[index], ...user };
+  else State.data.users.push(user);
+  State.data.users.sort((a, b) => {
+    const ownerDelta = Number(!!b.isOwner) - Number(!!a.isOwner);
+    if (ownerDelta) return ownerDelta;
+    const premiumDelta = Number(!!b.premium) - Number(!!a.premium);
+    if (premiumDelta) return premiumDelta;
+    return String(a.pushName || a.number || a.jid).localeCompare(String(b.pushName || b.number || b.jid));
+  });
+  return State.data.users.find((entry) => entry.jid === user.jid);
+}
+
+function removeManagedUser(jid) {
+  const target = String(jid || '').trim();
+  State.data.users = (State.data.users || []).filter((entry) => entry.jid !== target && getManagedUserKey(entry) !== target);
+}
+
+async function loadUsers() {
+  try {
+    State.data.users = await api('/bot-api/users');
+    renderUsers();
+  }
+  catch (e) { toast(e.message, 'error'); }
+}
+
+function renderUsers() {
+  const q = (document.getElementById('usersDbSearch')?.value || '').toLowerCase();
+  const list = State.data.users.filter(u => {
+    return !q
+      || u.jid.toLowerCase().includes(q)
+      || (u.pushName || '').toLowerCase().includes(q)
+      || (u.number || '').includes(q);
+  });
+
+  // Update Mini Stats
+  const totalEl = document.getElementById('statTotalUsers');
+  if (totalEl) totalEl.textContent = list.length;
+  const ownerEl = document.getElementById('statOwnerUsers');
+  if (ownerEl) ownerEl.textContent = list.filter(u => u.isOwner).length;
+  const activeEl = document.getElementById('statActiveUsers');
+  if (activeEl) activeEl.textContent = list.filter(u => u.lastSeen && (Date.now() - new Date(u.lastSeen).getTime() < 1000 * 60 * 60)).length;
+
+  const tb = document.getElementById('usersDbTable');
+  if (!tb) return;
+  if (!list.length) {
+    tb.innerHTML = '<tr><td colspan="5" class="empty-row">No matching user records found in database.</td></tr>';
+    return;
+  }
+  tb.innerHTML = list.map(u => {
+    const initials = (u.pushName || 'U').charAt(0).toUpperCase();
+    const lastSeenDate = u.lastSeen ? new Date(u.lastSeen) : null;
+    const isActive = lastSeenDate && (Date.now() - lastSeenDate.getTime() < 1000 * 60 * 10); // 10 mins
+
+    const joinedDate = u.joinedAt ? new Date(u.joinedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Unknown';
+
+    return \`
+    <tr style="border-bottom: 1px solid var(--line); transition: all 0.3s ease">
+      <td style="padding: 16px 20px">
+        <div class="user-id-cell">
+          <div class="user-avatar \${u.isOwner ? 'owner' : ''}" style="width:44px; height:44px; font-size:1.1rem; border-radius:14px; background: \${u.isOwner ? 'var(--grad-accent)' : 'linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.02) 100%)'}"\>
+            \${initials}
+          </div>
+          <div class="entity-meta">
+            <div style="display:flex; align-items:center; gap:8px">
+              <strong style="font-size:1.05rem; letter-spacing:-0.01em; color: var(--txt)">\${escapeHtml(u.pushName || 'User')}</strong>
+              \${u.isOwner ? '<i class="ic" style="width:14px; height:14px; color:var(--warn); -webkit-mask-image:url(\\'data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22 fill=%22currentColor%22><path d=%22M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z%22/></svg>\\')"></i>' : ''}
+            </div>
+            <div class="user-activity" style="margin-top: 4px; opacity: 0.7">
+              <div class="activity-dot \${isActive ? 'active' : ''}"></div>
+              <span class="mono" style="font-size: 0.75rem">\${escapeHtml(u.jid)}</span>
+            </div>
+          </div>
+        </div>
+      </td>
+      <td style="padding: 16px 20px">
+        <div style="display:flex; flex-direction:column; gap:4px">
+          <span class="money-pill" style="padding: 6px 12px; border-radius: 10px; font-size: 0.9rem; background: \${(u.isOwner || u.premium) ? 'rgba(124, 58, 237, 0.12)' : 'rgba(0, 255, 136, 0.08)'}; border-color: \${(u.isOwner || u.premium) ? 'rgba(124, 58, 237, 0.25)' : 'rgba(0, 255, 136, 0.15)'}; color: \${(u.isOwner || u.premium) ? 'var(--accent-2)' : 'var(--brand)'}">
+            <span style="opacity:0.5; font-size:0.65rem; margin-right:4px; font-weight:800">DRM</span>
+            \${(u.isOwner || u.premium) ? 'UNLIMITED' : (u.balance || 0).toLocaleString()}
+          </span>
+          <div style="font-size: 0.65rem; color: var(--txt-3); font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; padding-left: 4px">
+            Joined \${joinedDate}
+          </div>
+        </div>
+      </td>
+      <td style="padding: 16px 20px">
+        <div style="display:flex; flex-direction:column; gap:6px">
+          <div class="stat-inline">
+            \${u.isOwner ? '<span class="badge violet" style="background: rgba(139, 92, 246, 0.15); border: 1px solid rgba(139, 92, 246, 0.3); padding: 4px 10px; font-weight: 800; font-size: 0.65rem">SYS OWNER</span>' : ''}
+            \${u.premium ? '<span class="badge blue" style="background: rgba(59, 130, 246, 0.15); border: 1px solid rgba(59, 130, 246, 0.3); padding: 4px 10px; font-weight: 800; font-size: 0.65rem">PREMIUM</span>' : ''}
+            \${u.banned ? '<span class="badge red" style="background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); padding: 4px 10px; font-weight: 800; font-size: 0.65rem">BANNED</span>' : '<span class="badge green" style="background: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.3); padding: 4px 10px; font-weight: 800; font-size: 0.65rem">ACTIVE</span>'}
+          </div>
+          <div style="font-size: 0.65rem; color: var(--txt-3); font-weight: 700; padding-left: 2px">
+            \${u.lastSeen ? 'LAST ACTIVITY: ' + fmtTime(u.lastSeen).toUpperCase() : 'NO ACTIVITY RECORDED'}
+          </div>
+        </div>
+      </td>
+      <td style="padding: 16px 20px; text-align:right">
+        <div style="display:flex; align-items:center; justify-content:flex-end; gap:8px">
+          <button class="btn btn-ghost btn-sm" style="width:36px; height:36px; padding:0; border-radius:10px" onclick="editUser(decodeURIComponent('\${encodeURIComponent(u.realJid || u.jid)}'))" title="Manage User">
+            <i class="ic" style="width:16px; height:16px; -webkit-mask-image:url(\'data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22 fill=%22none%22 stroke=%22currentColor%22 stroke-width=%222.5%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22><path d=%22M12 20h9%22/><path d=%22M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z%22/></svg>\')"></i>
+          </button>
+          <button class="btn btn-danger btn-sm" style="width:36px; height:36px; padding:0; border-radius:10px" onclick="deleteUser(decodeURIComponent('\${encodeURIComponent(u.realJid || u.jid)}'))" title="Wipe Record">
+            <i class="ic" style="width:16px; height:16px; -webkit-mask-image:url(\'data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22 fill=%22none%22 stroke=%22currentColor%22 stroke-width=%222.5%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22><path d=%22M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2%22/><path d=%22M10 11v6%22/><path d=%22M14 11v6%22/></svg>\')"></i>
+          </button>
+        </div>
+      </td>
+    </tr>\`;
+  }).join('');
+}
+
+function editUser(jid) {
+  const u = findManagedUserEntry(jid);
+  if (!u) return;
+  const jidEl = document.getElementById('editUserJid');
+  if (jidEl) jidEl.value = getManagedUserKey(u);
+  const ownerEl = document.getElementById('editUserIsOwner');
+  if (ownerEl) ownerEl.checked = !!u.isOwner;
+  const premiumEl = document.getElementById('editUserPremium');
+  if (premiumEl) premiumEl.checked = !!u.premium;
+  const bannedEl = document.getElementById('editUserBanned');
+  if (bannedEl) bannedEl.checked = !!u.banned;
+  const titleEl = document.getElementById('userEditTitle');
+  if (titleEl) titleEl.textContent = \`Edit User: \${u.pushName || u.number || 'User'}\`;
+  openModal('userEditModal');
+}
+
+async function saveUserEdit() {
+  const jid = document.getElementById('editUserJid').value;
+  const u = findManagedUserEntry(jid);
+  if (!u) return closeModal('userEditModal');
+
+  const payload = {
+    jid,
+    premium: document.getElementById('editUserPremium').checked,
+    banned: document.getElementById('editUserBanned').checked
+  };
+
+  const nextIsOwner = document.getElementById('editUserIsOwner').checked;
+
+  try {
+    // 1. Update Core Data
+    const result = await api('/bot-api/users/upsert', { method: 'POST', body: JSON.stringify(payload) });
+    if (result?.user) upsertManagedUser(result.user);
+
+    // 2. Update Owner Status if changed
+    if (nextIsOwner !== !!u.isOwner) {
+      const ownerResult = await api('/bot-api/users/' + encodeURIComponent(jid) + '/owner', {
+        method: 'POST',
+        body: JSON.stringify({ isOwner: nextIsOwner })
+      });
+      if (ownerResult?.user) upsertManagedUser(ownerResult.user);
+    }
+
+    renderUsers();
+    toast('User updated successfully', 'success');
+    closeModal('userEditModal');
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+async function addNewUser() {
+  const numEl = document.getElementById('newUserNumber');
+  const roleEl = document.getElementById('newUserRole');
+  if (!numEl || !roleEl) return;
+  const num = numEl.value.trim();
+  const role = roleEl.value;
+  if (!num) return toast('Phone number is required', 'error');
+  try {
+    const jid = normalizeUserJidInput(num);
+    const result = await api('/bot-api/users/upsert', {
+      method: 'POST',
+      body: JSON.stringify({ number: num, pushName: null, premium: role === 'premium' })
+    });
+    if (result?.user) upsertManagedUser(result.user);
+    if (role === 'owner') {
+      const ownerResult = await api('/bot-api/users/' + encodeURIComponent(jid) + '/owner', {
+        method: 'POST',
+        body: JSON.stringify({ isOwner: true })
+      });
+      if (ownerResult?.user) upsertManagedUser(ownerResult.user);
+    }
+    toast('User registered', 'success');
+    numEl.value = '';
+    roleEl.value = 'standard';
+    renderUsers();
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+async function deleteUser(jid) {
+  if (!await confirmDialog('Wipe all data for this user? This cannot be undone.', { okText: 'Wipe Data', danger: true })) return;
+  try {
+    await api('/bot-api/users/' + encodeURIComponent(jid), { method: 'DELETE' });
+    removeManagedUser(jid);
+    if (document.getElementById('editUserJid')?.value === jid) closeModal('userEditModal');
+    renderUsers();
+    toast('User data wiped', 'success');
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+function initUsers_dbTab() {
+  loadUsers();
+}
+
+window.initUsers_dbTab = initUsers_dbTab;
+window.renderUsers = renderUsers;
+window.editUser = editUser;
+window.saveUserEdit = saveUserEdit;
+window.addNewUser = addNewUser;
+window.deleteUser = deleteUser;
+window.findManagedUserEntry = findManagedUserEntry;
+window.upsertManagedUser = upsertManagedUser;
+window.removeManagedUser = removeManagedUser;
+</script>
