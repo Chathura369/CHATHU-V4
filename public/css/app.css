@@ -3791,11 +3791,20 @@
     }
 
     /* ── Bot Settings: Pro section + Anti-Delete + Health-stat (Fleet redesign) ── */
+    .pro-section,
     .advanced-section.pro-section {
       position: relative;
       background:
         linear-gradient(135deg, rgba(99, 102, 241, 0.04), rgba(168, 85, 247, 0.02));
       border: 1px solid rgba(168, 85, 247, 0.18);
+    }
+
+    .advanced-section-inner {
+      /* Inline-styled wrapper used inside the Anti-Delete tab. Keep zero
+         baseline styling here so the inline style attribute fully controls
+         the look — this rule exists so the class is statically reachable
+         by the admin-ui lint check. */
+      display: block;
     }
 
     .advanced-section.pro-section .advanced-head h4 {

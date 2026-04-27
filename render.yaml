@@ -1,0 +1,32 @@
+# Render.com blueprint
+services:
+  - type: web
+    name: chathu-md-bot
+    env: node
+    plan: free
+    region: singapore
+    buildCommand: npm install --omit=dev
+    startCommand: node --max-old-space-size=512 index.js
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: 20
+      - key: DATA_DIR
+        value: /opt/render/project/src/data
+      - key: ADMIN_USER
+        value: admin
+      - key: ADMIN_PASS
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: BOT_NAME
+        value: Chathu MD
+      - key: PREFIX
+        value: "."
+      - key: WORK_MODE
+        value: public
+    disk:
+      name: chathu-data
+      mountPath: /opt/render/project/src/data
+      sizeGB: 1

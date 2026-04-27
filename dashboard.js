@@ -510,6 +510,20 @@ const PAGE_IDS = [
 ];
 
 app.get('/', (req, res) => res.redirect('/dashboard'));
+
+// Health check for Railway/Fly/Render/etc. (no auth, lightweight, always 200
+// when the dashboard process is up). Cloud platforms poll this to decide
+// whether to route traffic / restart the container.
+app.get('/health', (req, res) => {
+    res.status(200).json({
+        ok: true,
+        service: 'chathu-md-dashboard',
+        uptime: Math.round(process.uptime()),
+        timestamp: new Date().toISOString(),
+    });
+});
+app.get('/healthz', (req, res) => res.status(200).send('ok'));
+
 app.get('/login', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'login.html'));
 });
