@@ -756,7 +756,10 @@ async function handleMessages(sock, messageBatch, sessionId = '__main__') {
         logger(`[Incoming] from: ${from}, sender: ${sender}, text: "${text}"`);
 
         // Fix: Behavioral features apply to all incoming messages
-        if (finalAutoRead && !msg.key.fromMe) await sock.sendReceipt(msg.key.remoteJid, msg.key.participant, [msg.key.id], 'read').catch(() => {});
+        // `readMessages` works for both 1:1 and group chats; `sendReceipt`
+        // expected a participant id and silently no-op'd in DMs (where
+        // participant is undefined), so chats appeared "stuck" as unread.
+        if (finalAutoRead && !msg.key.fromMe) await sock.readMessages([msg.key]).catch(() => {});
         if (finalAutoTyping && !msg.key.fromMe) await sock.sendPresenceUpdate('composing', from).catch(() => {});
 
         const prefix = finalPrefix;
