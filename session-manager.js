@@ -314,11 +314,22 @@ async function startSocket(id, entry) {
                 creds: state.creds,
                 keys: makeCacheableSignalKeyStore(state.keys, pino({ level: 'silent' })),
             },
-            browser: ['Ubuntu', 'Chrome', String(id).slice(0, 10)],
+            browser: ['Ubuntu', 'Chrome', '131.0.6778.205'],
             syncFullHistory: false,
             markOnlineOnConnect: true,
             printQRInTerminal: false,
         });
+
+        // Wrap sendMessage for ephemeral support (disappearing messages)
+        const _origSendMessage = sock.sendMessage.bind(sock);
+        const msgMgr = require('./lib/message-manager');
+        sock.sendMessage = (jid, content, opts) => {
+            const dur = msgMgr.getEphemeral(jid);
+            if (dur > 0 && !opts?.ephemeralExpiration) {
+                opts = { ...(opts || {}), ephemeralExpiration: dur };
+            }
+            return _origSendMessage(jid, content, opts);
+        };
 
         entry.sock = sock;
         entry.status = 'Connecting';
