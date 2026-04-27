@@ -768,7 +768,11 @@ async function handleMessages(sock, messageBatch, sessionId = '__main__') {
         if (msg.key.fromMe && !text.startsWith(finalPrefix) && !/^\d+$/.test(text.trim())) continue;
 
         if (db.isUserBanned(sender)) continue;
-        if (!isUserOwner && (workMode === 'self' || (workMode === 'private' && from.endsWith('@g.us')))) continue;
+        if (!isUserOwner && (
+            workMode === 'self' ||
+            (workMode === 'private' && from.endsWith('@g.us')) ||
+            (workMode === 'group' && !from.endsWith('@g.us'))
+        )) continue;
 
         cacheMsg(msg);
 
