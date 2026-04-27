@@ -28,7 +28,6 @@ COPY . .
 
 # Persistent volume mount target
 RUN mkdir -p /data
-VOLUME ["/data"]
 
 # Optional: container HEALTHCHECK matches /health endpoint
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
