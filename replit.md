@@ -1,4 +1,4 @@
-# CHATHU MD Bot — v2.1.0
+# CHATHU MD Bot — v3.0.0
 
 ## Overview
 A professional-grade WhatsApp multi-device bot built with Baileys, featuring a Cyber-Glass Admin Dashboard. It supports 89+ commands, multi-session management, real-time monitoring, and anti-crash recovery.
