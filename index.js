@@ -23,6 +23,12 @@ const NOISY_PATTERNS = [
     /Decrypted message with closed session/i,
     /Closing session: SessionEntry/i,
     /Closing open session in favor of incoming prekey bundle/i,
+    // Benign Node.js / npm warnings that pollute the dashboard log
+    /ExperimentalWarning:/i,
+    /Use `node --trace-warnings/i,
+    /\(Use `node --trace-warnings/i,
+    /DeprecationWarning:/i,
+    /npm warn deprecated/i,
 ];
 function isNoisySignalLine(args) {
     try {
@@ -44,6 +50,15 @@ console.log = (...args) => {
     _origConsoleLog(...args);
     try { logger(args.map(a => String(a)).join(' ')); } catch {}
 };
+
+// Suppress Node's default ExperimentalWarning printer (CommonJS importing ESM
+// is required by Baileys today and the warning floods the dashboard log).
+process.removeAllListeners('warning');
+process.on('warning', (warning) => {
+    const text = `${warning.name || 'Warning'}: ${warning.message || ''}`;
+    if (NOISY_PATTERNS.some(re => re.test(text))) return;
+    _origConsoleError(warning);
+});
 
 // Final safety net: never crash on uncaught Signal/decryption errors
 process.on('uncaughtException', (err) => {

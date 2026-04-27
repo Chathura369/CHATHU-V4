@@ -2727,6 +2727,73 @@
       background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .18), transparent)
     }
 
+    /* Generic modal subsections used across page-level modals (broadcast,
+       commands, scheduler, files, etc.). The page templates rely on these
+       classes for consistent header/body/footer spacing; without them every
+       modal collapses to whatever inline styles happen to be applied. */
+    .modal-header,
+    .modal-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      padding: 18px 22px;
+      border-bottom: 1px solid rgba(255, 255, 255, .08);
+      background: linear-gradient(180deg, rgba(255, 255, 255, .03), transparent);
+    }
+
+    .modal-header h3,
+    .modal-head h3 {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: var(--txt-1);
+      margin: 0;
+    }
+
+    /* Compact close button that lives inside .modal-header */
+    .modal-header > .btn.btn-ghost.btn-sm,
+    .modal-head > .btn.btn-ghost.btn-sm {
+      padding: 6px 10px;
+      font-size: 1.1rem;
+      line-height: 1;
+      align-self: center;
+    }
+
+    .modal-body {
+      padding: 20px 22px;
+      color: var(--txt-2);
+      max-height: calc(100vh - 220px);
+      overflow-y: auto;
+    }
+
+    .modal-footer {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 10px;
+      padding: 16px 22px;
+      border-top: 1px solid rgba(255, 255, 255, .08);
+      background: linear-gradient(0deg, rgba(255, 255, 255, .03), transparent);
+    }
+
+    /* User Database stat blocks */
+    .mini-stat {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 4px;
+      min-width: 0;
+    }
+
+    .user-management-header {
+      transition: border-color .25s ease, box-shadow .25s ease;
+    }
+
+    .user-management-header:hover {
+      border-color: rgba(255, 255, 255, .12);
+    }
+
     .modal h3 {
       font-family: 'Space Grotesk', sans-serif;
       font-size: 1.24rem;

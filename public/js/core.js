@@ -19,24 +19,36 @@ const State = {
   activeCmdCategory: 'all'
 };
 
-const socket = io({
-  auth: { token: localStorage.getItem('token') }
-});
+// Single shared socket connection. Re-using a global instance avoids the
+// duplicate event listeners (and double log/QR updates) that occurred when
+// both this module and initSocketEvents() called io() independently.
+const socket = (typeof io !== 'undefined') ? io({
+  auth: { token: localStorage.getItem('token') },
+}) : null;
+State.socket = socket;
 
-socket.on('connect', () => {
-  console.log('Socket connected');
-  setText('botGlobalStatus', 'Cloud Sync Active');
-  document.getElementById('botGlobalStatus').className = 'badge green';
-});
+if (socket) {
+  socket.on('connect', () => {
+    console.log('Socket connected');
+    const el = document.getElementById('botGlobalStatus');
+    if (el) {
+      el.textContent = 'Cloud Sync Active';
+      el.className = 'badge green';
+    }
+  });
 
-socket.on('disconnect', () => {
-  setText('botGlobalStatus', 'Offline');
-  document.getElementById('botGlobalStatus').className = 'badge gray';
-});
+  socket.on('disconnect', () => {
+    const el = document.getElementById('botGlobalStatus');
+    if (el) {
+      el.textContent = 'Offline';
+      el.className = 'badge gray';
+    }
+  });
 
-socket.on('log', (entry) => {
-  if (typeof appendLogLine === 'function') appendLogLine(entry);
-});
+  socket.on('log', (entry) => {
+    if (typeof appendLogLine === 'function') appendLogLine(entry);
+  });
+}
 
 // Navigation with Cleanup Engine
 async function navigate(page) {
@@ -155,13 +167,11 @@ function finishProgress() {
     updateMainStatus(s.status, s.number);
   }
 
-  // Real-time Event Listeners
+  // Real-time Event Listeners (re-uses the single shared socket created above)
   function initSocketEvents() {
-    if (typeof io === 'undefined') return;
-    const socket = io();
-    
-    socket.on('connect', () => console.log('Socket Linked'));
-    
+    const socket = State.socket;
+    if (!socket) return;
+
     socket.on('update', s => {
       updateShellStats(s);
       if (window.loadStats) window.loadStats();
