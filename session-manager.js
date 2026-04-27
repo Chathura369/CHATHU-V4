@@ -12,7 +12,7 @@ const {
     fetchLatestBaileysVersion,
     makeCacheableSignalKeyStore,
 } = require('@whiskeysockets/baileys');
-const { BROWSER } = require('./config');
+const { BROWSER, SESSIONS_DIR: SESSIONS_DIR_FROM_CONFIG } = require('./config');
 const pino = require('pino');
 const QRCode = require('qrcode');
 const fs = require('fs');
@@ -23,7 +23,7 @@ const { normalizeOwner } = require('./lib/utils');
 const VALID_WORK_MODES = new Set(['public', 'private', 'self']);
 
 function metadataPath(id) {
-    return path.join(__dirname, 'sessions', id, 'metadata.json');
+    return path.join(SESSIONS_DIR, id, 'metadata.json');
 }
 
 function saveMetadata(id, entry) {
@@ -100,7 +100,7 @@ function loadMetadata(id) {
 }
 const { normalizeSriLankanPhoneNumber } = require('./lib/phone-normalizer');
 
-const SESSIONS_DIR = path.join(__dirname, 'sessions');
+const SESSIONS_DIR = SESSIONS_DIR_FROM_CONFIG || path.join(__dirname, 'sessions');
 if (!fs.existsSync(SESSIONS_DIR)) fs.mkdirSync(SESSIONS_DIR, { recursive: true });
 
 // session registry: id → { sock, status, qr, pairCode, number, startedAt, phoneNumber }
