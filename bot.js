@@ -14,7 +14,6 @@ const { logger } = require('./logger');
 const { loadCommands, handleCommand } = require('./lib/handler');
 const { findAutoReply } = require('./lib/automation-runtime');
 const { normalizeSriLankanPhoneNumber } = require('./lib/phone-normalizer');
-const { learnEphemeral } = require('./lib/ephemeral-helper');
 const { BROWSER, SESSION_DIR } = require('./config');
 const appState = require('./state');
 const db = require('./lib/db');
@@ -245,18 +244,6 @@ async function createSocket(options = {}) {
             return msg?.message || undefined;
         }
     });
-
-    // Wrap sendMessage so every outgoing message automatically includes
-    // ephemeralExpiration for chats with disappearing messages enabled.
-    const _origSendMessage = sock.sendMessage.bind(sock);
-    const msgMgr = require('./lib/message-manager');
-    sock.sendMessage = (jid, content, opts) => {
-        const dur = msgMgr.getEphemeral(jid);
-        if (dur > 0 && !opts?.ephemeralExpiration) {
-            opts = { ...(opts || {}), ephemeralExpiration: dur };
-        }
-        return _origSendMessage(jid, content, opts);
-    };
 
     activeSocket = sock;
     appState.setSocket(sock);
@@ -538,10 +525,6 @@ async function handleMessages(sock, messageBatch, sessionId = '__main__') {
 
     for (const msg of validMessages) {
         if (!msg.message) continue;
-
-        // Cache the chat's disappearing-message duration so outgoing
-        // replies automatically include ephemeralExpiration.
-        learnEphemeral(msg);
 
         const jid = msg.key.remoteJid;
         const fromMe = msg.key.fromMe;
