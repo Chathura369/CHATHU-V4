@@ -164,10 +164,10 @@ function refreshRuntimeFeatures(sessionId = '__main__') {
 function shouldBlockGroupJoin(sessionId, update = {}) {
     if (!getSessionFeature(sessionId, 'antiGroupJoin', false)) return false;
     const action = update.action || update.type;
-    if (action && !['add', 'invite'].includes(String(action).toLowerCase())) return false;
+    if (!action || !['add', 'invite'].includes(String(action).toLowerCase())) return false;
     const botId = activeSocket?.user?.id?.split(':')[0];
     const participants = Array.isArray(update.participants) ? update.participants : [];
-    return !participants.length || participants.some((jid) => botId && String(jid).startsWith(botId));
+    return participants.length > 0 && participants.some((jid) => botId && String(jid).startsWith(botId));
 }
 
 function resetMainState(status = 'Disconnected') {

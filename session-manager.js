@@ -226,10 +226,10 @@ async function handleIncomingCall(id, entry, calls = []) {
 function shouldBlockGroupJoin(entry, update = {}) {
     if (!getSessionFeature(entry, 'antiGroupJoin', false)) return false;
     const action = update.action || update.type;
-    if (action && !['add', 'invite'].includes(String(action).toLowerCase())) return false;
+    if (!action || !['add', 'invite'].includes(String(action).toLowerCase())) return false;
     const botId = entry?.sock?.user?.id?.split(':')[0];
     const participants = Array.isArray(update.participants) ? update.participants : [];
-    return !participants.length || participants.some((jid) => botId && String(jid).startsWith(botId));
+    return participants.length > 0 && participants.some((jid) => botId && String(jid).startsWith(botId));
 }
 
 function setIO(io) { _io = io; }
@@ -581,6 +581,7 @@ async function startSocket(id, entry) {
         sock.ev.on('group-participants.update', async (update) => {
             if (!shouldBlockGroupJoin(entry, update)) return;
             entry.manualDisconnectKeep = true;
+            entry.qrPaused = true;
             entry.status = 'Group Join Blocked';
             emit('session:update', { id, status: entry.status });
             await destroySocket(id, { logout: false });
