@@ -403,6 +403,8 @@ async function handleMessages(sock, messageBatch, sessionId = '__main__') {
     let sAiAutoPersona = null;
     let sAiAutoLang = null;
     let sAiGroupMode = null;
+    let sAiSystemInstruction = null;
+    let sAiMaxWords = null;
 
     if (sessionId === '__main__') {
         const ov = db.getSetting('main_bot_settings') || {};
@@ -423,6 +425,8 @@ async function handleMessages(sock, messageBatch, sessionId = '__main__') {
         sAiAutoPersona = ov.aiAutoPersona || appState.getAiAutoPersona();
         sAiAutoLang = ov.aiAutoLang || appState.getAiAutoLang();
         sAiGroupMode = ov.aiGroupMode || appState.getAiGroupMode();
+        sAiSystemInstruction = ov.aiSystemInstruction !== undefined ? ov.aiSystemInstruction : appState.getAiSystemInstruction();
+        sAiMaxWords = ov.aiMaxWords !== undefined ? ov.aiMaxWords : appState.getAiMaxWords();
     } else {
         const sessionMgr = require('./session-manager');
         const session = sessionMgr.get(sessionId);
@@ -452,11 +456,13 @@ async function handleMessages(sock, messageBatch, sessionId = '__main__') {
                 ? session.autoReply 
                 : true; // Default to true if not specified per-bot
             
-            sAiAutoReply = session.aiAutoReply !== undefined ? session.aiAutoReply : null;
-            sAiAutoVoice = session.aiAutoVoice !== undefined ? session.aiAutoVoice : null;
+            sAiAutoReply = session.aiAutoReply !== null && session.aiAutoReply !== undefined ? session.aiAutoReply : null;
+            sAiAutoVoice = session.aiAutoVoice !== null && session.aiAutoVoice !== undefined ? session.aiAutoVoice : null;
             sAiAutoPersona = session.aiAutoPersona || null;
             sAiAutoLang = session.aiAutoLang || null;
             sAiGroupMode = session.aiGroupMode || null;
+            sAiSystemInstruction = session.aiSystemInstruction !== undefined ? session.aiSystemInstruction : null;
+            sAiMaxWords = session.aiMaxWords !== undefined ? session.aiMaxWords : null;
         }
     }
 
@@ -475,6 +481,8 @@ async function handleMessages(sock, messageBatch, sessionId = '__main__') {
     const finalAiAutoPersona = sAiAutoPersona || appState.getAiAutoPersona() || 'friendly';
     const finalAiAutoLang = sAiAutoLang || appState.getAiAutoLang() || 'mixed';
     const finalAiGroupMode = sAiGroupMode || appState.getAiGroupMode() || 'mention';
+    const finalAiSystemInstruction = sAiSystemInstruction !== null ? sAiSystemInstruction : appState.getAiSystemInstruction();
+    const finalAiMaxWords = sAiMaxWords !== null ? sAiMaxWords : appState.getAiMaxWords();
     
     // Auto-view / Auto-react for status@broadcast are now independent of the
     // generic autoStatus flag — either global toggle alone is enough to trigger.
@@ -809,11 +817,14 @@ async function handleMessages(sock, messageBatch, sessionId = '__main__') {
 
         const isCommand = await handleCommand(sock, msg, from, text, disabledModules, { 
             workMode, owner, nsfwEnabled: finalNsfw, prefix: finalPrefix, botName: finalBotName, sessionId,
+            autoReply: finalAutoReply,
             aiAutoReply: finalAiAutoReply,
             aiAutoVoice: finalAiAutoVoice,
             aiAutoPersona: finalAiAutoPersona,
             aiAutoLang: finalAiAutoLang,
-            aiGroupMode: finalAiGroupMode
+            aiGroupMode: finalAiGroupMode,
+            aiSystemInstruction: finalAiSystemInstruction,
+            aiMaxWords: finalAiMaxWords
         });
         if (isCommand) {
             // Increment Command Count
