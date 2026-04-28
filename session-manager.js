@@ -137,6 +137,101 @@ if (!fs.existsSync(SESSIONS_DIR)) fs.mkdirSync(SESSIONS_DIR, { recursive: true }
 const registry = new Map();
 let _io = null;
 
+const proTimers = new Map();
+
+function setProTimer(key, timer) {
+    clearProTimer(key);
+    proTimers.set(key, timer);
+    if (typeof timer.unref === 'function') timer.unref();
+}
+
+function clearProTimer(key) {
+    const timer = proTimers.get(key);
+    if (timer) clearTimeout(timer);
+    proTimers.delete(key);
+}
+
+function clearSessionProTimers(id) {
+    for (const key of Array.from(proTimers.keys())) {
+        if (key.startsWith(`${id}:`)) clearProTimer(key);
+    }
+}
+
+function getSessionFeature(entry, key, fallback = false) {
+    const value = entry ? entry[key] : undefined;
+    return value === undefined || value === null ? fallback : value;
+}
+
+async function applyOnlinePresence(id, entry, force = false) {
+    if (!entry?.sock) return;
+    const mode = getSessionFeature(entry, 'alwaysRecording', false)
+        ? 'recording'
+        : getSessionFeature(entry, 'alwaysOnline', false)
+            ? 'available'
+            : null;
+
+    if (!mode) {
+        clearProTimer(`${id}:presence`);
+        if (force) await entry.sock.sendPresenceUpdate('unavailable').catch(() => {});
+        return;
+    }
+
+    await entry.sock.sendPresenceUpdate(mode).catch((error) => {
+        logger(`[Session ${id}] Presence update failed: ${error.message}`);
+    });
+    const timer = setTimeout(() => {
+        applyOnlinePresence(id, entry).catch(() => {});
+    }, 25000);
+    setProTimer(`${id}:presence`, timer);
+}
+
+function getProfileStatusText(entry) {
+    return `${entry.name || 'Chathu MD'} online • ${new Date().toLocaleString('en-US', { timeZone: 'Asia/Colombo' })}`;
+}
+
+async function applyAutoBio(id, entry) {
+    if (!entry?.sock || !getSessionFeature(entry, 'autoBio', false)) {
+        clearProTimer(`${id}:autoBio`);
+        return;
+    }
+    if (typeof entry.sock.updateProfileStatus === 'function') {
+        await entry.sock.updateProfileStatus(getProfileStatusText(entry)).catch((error) => {
+            logger(`[Session ${id}] Auto Bio update failed: ${error.message}`);
+        });
+    }
+    const timer = setTimeout(() => {
+        applyAutoBio(id, entry).catch(() => {});
+    }, 10 * 60 * 1000);
+    setProTimer(`${id}:autoBio`, timer);
+}
+
+function applyProFeatureLoops(id, entry) {
+    applyOnlinePresence(id, entry, true).catch(() => {});
+    applyAutoBio(id, entry).catch(() => {});
+}
+
+async function handleIncomingCall(id, entry, calls = []) {
+    if (!entry?.sock || !getSessionFeature(entry, 'antiCall', false)) return;
+    for (const call of calls || []) {
+        if (!call?.id || !call?.from) continue;
+        try {
+            await entry.sock.rejectCall(call.id, call.from);
+            logger(`[Session ${id}] Rejected incoming call from ${call.from}`);
+        } catch (error) {
+            logger(`[Session ${id}] Anti Call failed: ${error.message}`);
+        }
+    }
+}
+
+function shouldBlockGroupJoin(entry, update = {}) {
+    if (!getSessionFeature(entry, 'antiGroupJoin', false)) return false;
+    const action = update.action || update.type;
+    if (action && !['add', 'invite'].includes(String(action).toLowerCase())) return false;
+    const botId = entry?.sock?.user?.id?.split(':')[0];
+    const participants = Array.isArray(update.participants) ? update.participants : [];
+    return !participants.length || participants.some((jid) => botId && String(jid).startsWith(botId));
+}
+
 function setIO(io) { _io = io; }
 
 function emit(event, data) {
@@ -250,9 +345,12 @@ async function createSession(id, opts = {}) {
         const oldEntry = registry.get(id);
         if (oldEntry.sock) {
             try { oldEntry.sock.ev.removeAllListeners('connection.update'); } catch { }
+            try { oldEntry.sock.ev.removeAllListeners('call'); } catch { }
+            try { oldEntry.sock.ev.removeAllListeners('group-participants.update'); } catch { }
             try { oldEntry.sock.end(undefined); } catch { }
             oldEntry.sock = null;
         }
+        clearSessionProTimers(id);
         registry.delete(id);
     }
 
@@ -381,7 +479,10 @@ async function startSocket(id, entry) {
                     entry.qrPaused = true;
                     entry.status = 'Idle (Paused)';
                     emit('session:update', { id, status: 'Idle (Paused)' });
+                    clearSessionProTimers(id);
                     try { sock.ev.removeAllListeners('connection.update'); } catch { }
+                    try { sock.ev.removeAllListeners('call'); } catch { }
+                    try { sock.ev.removeAllListeners('group-participants.update'); } catch { }
                     try { sock.end(undefined); } catch { }
                     return;
                 }
@@ -467,10 +568,21 @@ async function startSocket(id, entry) {
                 } catch (e) {
                     logger(`[Session ${id}] Group sync failed: ${e.message}`);
                 }
+                applyProFeatureLoops(id, entry);
             }
         });
 
         sock.ev.on('creds.update', saveCreds);
+        sock.ev.on('call', async (calls) => {
+            await handleIncomingCall(id, entry, calls);
+        });
+        sock.ev.on('group-participants.update', async (update) => {
+            if (!shouldBlockGroupJoin(entry, update)) return;
+            entry.manualDisconnectKeep = true;
+            entry.status = 'Group Join Blocked';
+            emit('session:update', { id, status: entry.status });
+            await destroySocket(id, { logout: false });
+        });
 
         sock.ev.on('messages.upsert', async (m) => {
             let handleMessages;
@@ -509,6 +621,7 @@ async function destroySocket(id, options = {}) {
     const entry = registry.get(id);
     if (!entry) return;
     if (entry.reconnectTimer) clearTimeout(entry.reconnectTimer);
+    clearSessionProTimers(id);
     if (entry.sock) {
         if (logout) {
             try { await entry.sock.logout(); } catch { }
@@ -618,6 +731,9 @@ async function updateSessionSettings(id, settings) {
     if (settings.aiSystemInstruction !== undefined) entry.aiSystemInstruction = String(settings.aiSystemInstruction);
     if (settings.aiMaxWords !== undefined) entry.aiMaxWords = parseInt(settings.aiMaxWords) || 30;
     if (settings.mentionReply !== undefined) entry.mentionReply = String(settings.mentionReply);
+    if (settings.alwaysOnline !== undefined || settings.alwaysRecording !== undefined || settings.autoBio !== undefined) {
+        applyProFeatureLoops(id, entry);
+    }
 
     saveMetadata(id, entry);
     const session = sessionSnapshot(id, entry);
@@ -675,6 +791,17 @@ async function updateSessionMetrics(id, patch = {}) {
     emitSessionUpdate(id);
 }
 
+function refreshRuntimeFeatures(id = null) {
+    if (id) {
+        const entry = registry.get(id);
+        if (entry) applyProFeatureLoops(id, entry);
+        return;
+    }
+    for (const [sessionId, entry] of registry.entries()) {
+        applyProFeatureLoops(sessionId, entry);
+    }
+}
+
 module.exports = {
     setIO,
     createSession,
@@ -682,6 +809,7 @@ module.exports = {
     disconnectSession,
     requestPairCode,
     reconnectSession,
+    refreshRuntimeFeatures,
     updateSessionSettings,
     updateSessionMetrics,
     getAll,
