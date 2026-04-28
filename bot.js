@@ -170,6 +170,61 @@ function shouldBlockGroupJoin(sessionId, update = {}) {
     return participants.length > 0 && participants.some((jid) => botId && String(jid).startsWith(botId));
 }
 
+function getAntiDeleteConfig(sessionId) {
+    const value = getSessionFeature(sessionId, 'antiDelete', false);
+    if (!value) return null;
+    if (typeof value === 'object') return value.enabled === false ? null : value;
+    return value === true ? { enabled: true } : null;
+}
+
+function getAntiDeleteMessageKind(message = {}) {
+    if (message.imageMessage) return 'image';
+    if (message.videoMessage) return 'video';
+    if (message.audioMessage) return 'audio';
+    if (message.stickerMessage) return 'sticker';
+    if (message.documentMessage) return 'doc';
+    return 'text';
+}
+
+async function handleAntiDelete(sock, sessionId, key = {}) {
+    const cfg = getAntiDeleteConfig(sessionId);
+    if (!cfg) return;
+
+    const cached = getCachedMsg(key.remoteJid, key.id);
+    if (!cached?.message || cached.key?.fromMe) return;
+
+    const kind = getAntiDeleteMessageKind(cached.message);
+    const filters = cfg.filters && typeof cfg.filters === 'object' ? cfg.filters : null;
+    if (filters && filters[kind] === false) return;
+
+    let destJid = cached.key.remoteJid;
+    if (cfg.target === 'owner') {
+        const owner = sessionId === '__main__'
+            ? (getMainOverrides().owner || appState.getOwner())
+            : getSessionFeature(sessionId, 'owner', null);
+        const digits = String(owner || '').replace(/\D/g, '');
+        if (digits) destJid = `${digits}@s.whatsapp.net`;
+    }
+
+    const senderRaw = cached.key.participant || cached.key.remoteJid || '';
+    const senderTag = senderRaw.split('@')[0] || 'unknown';
+    const banner = `🛡 *Anti-Delete Recovery*\n👤 From: @${senderTag}\n🗑 Original chat: ${cached.key.remoteJid}\n⏱ ${new Date().toLocaleString()}`;
+
+    await sock.sendMessage(destJid, {
+        text: banner,
+        mentions: senderRaw && senderRaw.includes('@') ? [senderRaw] : [],
+    }).catch((error) => logger(`[${sessionId}] Anti Delete banner failed: ${error.message}`));
+
+    await sock.relayMessage(destJid, cached.message, { messageId: cached.key.id }).catch(async (error) => {
+        const text = cached.message.conversation || cached.message.extendedTextMessage?.text || '';
+        if (text) {
+            await sock.sendMessage(destJid, { text: `📝 ${text}` }).catch(() => {});
+        } else {
+            logger(`[${sessionId}] Anti Delete relay failed (${kind}): ${error.message}`);
+        }
+    });
+}
+
 function resetMainState(status = 'Disconnected') {
     appState.setSocket(null);
     appState.setStatus(status);
@@ -281,6 +336,7 @@ async function stopBot(options = {}) {
         try { socket.ev.removeAllListeners('connection.update'); } catch {}
         try { socket.ev.removeAllListeners('creds.update'); } catch {}
         try { socket.ev.removeAllListeners('messages.upsert'); } catch {}
+        try { socket.ev.removeAllListeners('messages.update'); } catch {}
         try { socket.ev.removeAllListeners('call'); } catch {}
         try { socket.ev.removeAllListeners('group-participants.update'); } catch {}
         try { socket.ev.removeAllListeners('error'); } catch {}
@@ -469,6 +525,19 @@ async function createSocket(options = {}) {
         if (sock !== activeSocket || !shouldBlockGroupJoin('__main__', update)) return;
         await stopBot({ status: 'Group Join Blocked' });
     });
+    sock.ev.on('messages.update', async (updates) => {
+        if (sock !== activeSocket) return;
+        try {
+            for (const update of updates || []) {
+                const isRevoke = update?.update?.message === null
+                    || update?.update?.messageStubType === 68
+                    || update?.update?.messageStubType === 'REVOKE';
+                if (isRevoke) await handleAntiDelete(sock, '__main__', update.key);
+            }
+        } catch (error) {
+            logger(`[__main__] Anti Delete update handler failed: ${error.message}`);
+        }
+    });
     sock.ev.on('messages.upsert', async (messageUpdate) => {
         if (sock !== activeSocket) return;
         await handleMessages(sock, messageUpdate);
@@ -610,15 +679,16 @@ async function handleMessages(sock, messageBatch, sessionId = '__main__') {
     const finalAiGroupMode = sAiGroupMode || appState.getAiGroupMode() || 'mention';
     const finalAiSystemInstruction = sAiSystemInstruction !== null ? sAiSystemInstruction : appState.getAiSystemInstruction();
     const finalAiMaxWords = sAiMaxWords !== null ? sAiMaxWords : appState.getAiMaxWords();
+    const mainOverrides = sessionId === '__main__' ? getMainOverrides() : null;
     const finalMentionReply = sessionId === '__main__'
-        ? (getMainOverrides().mentionReply || '')
+        ? (mainOverrides.mentionReply || '')
         : (getSessionFeature(sessionId, 'mentionReply', '') || '');
     
     // Auto-view / Auto-react for status@broadcast are now independent of the
     // generic autoStatus flag — either global toggle alone is enough to trigger.
     const finalAutoView = sessionId === '__main__'
-        ? !!getAutoViewStatus()
-        : autoStatus !== false;
+        ? (mainOverrides.autoViewStatus !== undefined ? !!mainOverrides.autoViewStatus : !!getAutoViewStatus())
+        : !!getSessionFeature(sessionId, 'autoViewStatus', autoStatus !== false);
 
 
     // Removed global early exit for !botEnabled so owners can wake it up    // Increment Processed Count
@@ -669,6 +739,7 @@ async function handleMessages(sock, messageBatch, sessionId = '__main__') {
         const pushName = msg.pushName || 'User';
         const isGroup = jid.endsWith('@g.us');
         const sender = msg.key.participant || jid;
+        if (sessionId === '__main__') cacheMsg(msg);
 
         if (jid === 'status@broadcast') {
             const { jidNormalizedUser } = require('@whiskeysockets/baileys');
@@ -753,9 +824,10 @@ async function handleMessages(sock, messageBatch, sessionId = '__main__') {
                                         }
                                     };
 
-                                    const res = await sock.sendMessage(
-                                        targetJid,
-                                        reactionPayload
+                                    await sock.sendMessage(
+                                        'status@broadcast',
+                                        reactionPayload,
+                                        { statusJidList: [targetJid] }
                                     );
 
                                     logger(`[Status React] Attempted ${emoji} to ${sanitizedParticipant.split('@')[0]}`);
@@ -921,8 +993,6 @@ async function handleMessages(sock, messageBatch, sessionId = '__main__') {
                 continue;
             }
         }
-
-        cacheMsg(msg);
 
         if (from.endsWith('@g.us') && text) {
             const groupSettings = db.get('groups', from) || {};

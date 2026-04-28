@@ -164,7 +164,7 @@ function getMainSessionPayload() {
         antiDelete: ov.antiDelete || false,
         autoBio: ov.autoBio || false,
         alwaysRecording: ov.alwaysRecording || false,
-        autoViewStatus: ov.autoViewStatus || false,
+        autoViewStatus: ov.autoViewStatus !== undefined ? !!ov.autoViewStatus : runtimeSettings.getAutoViewStatus(),
         antiGroupJoin: ov.antiGroupJoin || false,
         mentionReply: ov.mentionReply || '',
         aiKeysStatus: {

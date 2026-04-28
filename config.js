@@ -85,7 +85,7 @@ module.exports = {
   SESSIONS_DIR,
   DOWNLOAD_DIR,
   DB_PATH,
-  BROWSER: ["Ubuntu", "Chrome", "20.0.04"],
+  BROWSER: ["Ubuntu", "Chrome", "131.0.6778.205"],
   SEARCH_CACHE_TTL: readInt(process.env.SEARCH_CACHE_TTL, 300000),
   DOWNLOAD_CACHE_TTL: readInt(process.env.DOWNLOAD_CACHE_TTL, 10 * 60 * 1000),
   AUTO_READ: String(process.env.AUTO_READ || "true").toLowerCase() !== "false",
