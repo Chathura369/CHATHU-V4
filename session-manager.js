@@ -138,6 +138,25 @@ const registry = new Map();
 let _io = null;
 
 const proTimers = new Map();
+const messageStores = new Map();
+
+function getSessionMessageStore(id) {
+    if (!messageStores.has(id)) messageStores.set(id, []);
+    return messageStores.get(id);
+}
+
+function cacheSessionMsg(id, msg) {
+    if (!msg?.key?.remoteJid || !msg?.key?.id) return;
+    const store = getSessionMessageStore(id);
+    store.push(msg);
+    if (store.length > 250) store.shift();
+}
+
+function getCachedSessionMsg(id, jid, msgId) {
+    if (!jid || !msgId) return null;
+    const store = messageStores.get(id) || [];
+    return store.find((msg) => msg.key?.remoteJid === jid && msg.key?.id === msgId) || null;
+}
 
 function setProTimer(key, timer) {
     clearProTimer(key);
@@ -155,6 +174,11 @@ function clearSessionProTimers(id) {
     for (const key of Array.from(proTimers.keys())) {
         if (key.startsWith(`${id}:`)) clearProTimer(key);
     }
+}
+
+function clearSessionRuntimeCaches(id) {
+    clearSessionProTimers(id);
+    messageStores.delete(id);
 }
 
 function getSessionFeature(entry, key, fallback = false) {
@@ -230,6 +254,59 @@ function shouldBlockGroupJoin(entry, update = {}) {
     const botId = entry?.sock?.user?.id?.split(':')[0];
     const participants = Array.isArray(update.participants) ? update.participants : [];
     return participants.length > 0 && participants.some((jid) => botId && String(jid).startsWith(botId));
+}
+
+function getAntiDeleteConfig(entry) {
+    const value = getSessionFeature(entry, 'antiDelete', false);
+    if (!value) return null;
+    if (typeof value === 'object') return value.enabled === false ? null : value;
+    return value === true ? { enabled: true } : null;
+}
+
+function getAntiDeleteMessageKind(message = {}) {
+    if (message.imageMessage) return 'image';
+    if (message.videoMessage) return 'video';
+    if (message.audioMessage) return 'audio';
+    if (message.stickerMessage) return 'sticker';
+    if (message.documentMessage) return 'doc';
+    return 'text';
+}
+
+async function handleAntiDelete(id, entry, key = {}) {
+    if (!entry?.sock) return;
+    const cfg = getAntiDeleteConfig(entry);
+    if (!cfg) return;
+
+    const cached = getCachedSessionMsg(id, key.remoteJid, key.id);
+    if (!cached?.message || cached.key?.fromMe) return;
+
+    const kind = getAntiDeleteMessageKind(cached.message);
+    const filters = cfg.filters && typeof cfg.filters === 'object' ? cfg.filters : null;
+    if (filters && filters[kind] === false) return;
+
+    let destJid = cached.key.remoteJid;
+    if (cfg.target === 'owner' && entry.owner) {
+        const digits = String(entry.owner).replace(/\D/g, '');
+        if (digits) destJid = `${digits}@s.whatsapp.net`;
+    }
+
+    const senderRaw = cached.key.participant || cached.key.remoteJid || '';
+    const senderTag = senderRaw.split('@')[0] || 'unknown';
+    const banner = `🛡 *Anti-Delete Recovery*\n👤 From: @${senderTag}\n🗑 Original chat: ${cached.key.remoteJid}\n⏱ ${new Date().toLocaleString()}`;
+
+    await entry.sock.sendMessage(destJid, {
+        text: banner,
+        mentions: senderRaw && senderRaw.includes('@') ? [senderRaw] : [],
+    }).catch((error) => logger(`[Session ${id}] Anti Delete banner failed: ${error.message}`));
+
+    await entry.sock.relayMessage(destJid, cached.message, { messageId: cached.key.id }).catch(async (error) => {
+        const text = cached.message.conversation || cached.message.extendedTextMessage?.text || '';
+        if (text) {
+            await entry.sock.sendMessage(destJid, { text: `📝 ${text}` }).catch(() => {});
+        } else {
+            logger(`[Session ${id}] Anti Delete relay failed (${kind}): ${error.message}`);
+        }
+    });
 }
 
 function setIO(io) { _io = io; }
@@ -347,10 +424,12 @@ async function createSession(id, opts = {}) {
             try { oldEntry.sock.ev.removeAllListeners('connection.update'); } catch { }
             try { oldEntry.sock.ev.removeAllListeners('call'); } catch { }
             try { oldEntry.sock.ev.removeAllListeners('group-participants.update'); } catch { }
+            try { oldEntry.sock.ev.removeAllListeners('messages.update'); } catch { }
+            try { oldEntry.sock.ev.removeAllListeners('messages.upsert'); } catch { }
             try { oldEntry.sock.end(undefined); } catch { }
             oldEntry.sock = null;
         }
-        clearSessionProTimers(id);
+        clearSessionRuntimeCaches(id);
         registry.delete(id);
     }
 
@@ -428,10 +507,14 @@ async function startSocket(id, entry) {
                 creds: state.creds,
                 keys: makeCacheableSignalKeyStore(state.keys, pino({ level: 'silent' })),
             },
-            browser: ['Ubuntu', 'Chrome', String(id).slice(0, 10)],
+            browser: BROWSER,
             syncFullHistory: false,
             markOnlineOnConnect: true,
             printQRInTerminal: false,
+            getMessage: async (key) => {
+                const msg = getCachedSessionMsg(id, key.remoteJid, key.id);
+                return msg?.message || undefined;
+            },
         });
 
         entry.sock = sock;
@@ -479,10 +562,12 @@ async function startSocket(id, entry) {
                     entry.qrPaused = true;
                     entry.status = 'Idle (Paused)';
                     emit('session:update', { id, status: 'Idle (Paused)' });
-                    clearSessionProTimers(id);
+                    clearSessionRuntimeCaches(id);
                     try { sock.ev.removeAllListeners('connection.update'); } catch { }
                     try { sock.ev.removeAllListeners('call'); } catch { }
                     try { sock.ev.removeAllListeners('group-participants.update'); } catch { }
+                    try { sock.ev.removeAllListeners('messages.update'); } catch { }
+                    try { sock.ev.removeAllListeners('messages.upsert'); } catch { }
                     try { sock.end(undefined); } catch { }
                     return;
                 }
@@ -496,7 +581,7 @@ async function startSocket(id, entry) {
 
                 if (isBadMac) {
                     logger(`[Session ${id}] ⚠️ Critical Session Corruption (Bad MAC) detected. Purging session for security.`);
-                    clearSessionProTimers(id);
+                    clearSessionRuntimeCaches(id);
                     entry.sock = null;
                     try { fs.rmSync(sessionDir(id), { recursive: true, force: true }); } catch { }
                     registry.delete(id);
@@ -587,7 +672,23 @@ async function startSocket(id, entry) {
             await destroySocket(id, { logout: false });
         });
 
+        sock.ev.on('messages.update', async (updates) => {
+            try {
+                for (const update of updates || []) {
+                    const isRevoke = update?.update?.message === null
+                        || update?.update?.messageStubType === 68
+                        || update?.update?.messageStubType === 'REVOKE';
+                    if (isRevoke) await handleAntiDelete(id, entry, update.key);
+                }
+            } catch (error) {
+                logger(`[Session ${id}] Anti Delete update handler failed: ${error.message}`);
+            }
+        });
+
         sock.ev.on('messages.upsert', async (m) => {
+            for (const msg of m?.messages || []) {
+                cacheSessionMsg(id, msg);
+            }
             let handleMessages;
             try { handleMessages = require('./bot').handleMessages; } catch (e) { }
             if (handleMessages) await handleMessages(sock, m, id);
@@ -624,7 +725,7 @@ async function destroySocket(id, options = {}) {
     const entry = registry.get(id);
     if (!entry) return;
     if (entry.reconnectTimer) clearTimeout(entry.reconnectTimer);
-    clearSessionProTimers(id);
+    clearSessionRuntimeCaches(id);
     if (entry.sock) {
         if (logout) {
             try { await entry.sock.logout(); } catch { }
