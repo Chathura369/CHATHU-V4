@@ -1264,7 +1264,7 @@
       const langSel = document.getElementById('advBotAiLang');
       if (langSel) langSel.value = aiLang;
       const groupModeSel = document.getElementById('advBotAiGroupMode');
-      if (groupModeSel) groupModeSel.value = aiGroupMode;
+      if (groupModeSel) groupModeSel.value = aiGroupMode === 'always' ? 'reply' : aiGroupMode;
       const maxWordsInput = document.getElementById('advBotAiMaxWords');
       if (maxWordsInput) maxWordsInput.value = aiMaxWords;
       const sysInstr = document.getElementById('advBotAiSystemInstruction');
@@ -1415,7 +1415,8 @@
       if (!id) return;
 
       const settings = {};
-      settings[key] = val;
+      const apiVal = key === 'aiGroupMode' && val === 'reply' ? 'always' : val;
+      settings[key] = apiVal;
       const s = State.data.sessions.find(x => x.id === id);
       const previous = s ? s[key] : undefined;
 
@@ -1426,7 +1427,7 @@
         });
 
         const updated = res?.session ? upsertSession(res.session) : s;
-        if (updated) updated[key] = res?.session?.[key] ?? val;
+        if (updated) updated[key] = res?.session?.[key] ?? apiVal;
 
         if (updated) syncBotSettingsModal(updated);
         renderManagedUsers();
