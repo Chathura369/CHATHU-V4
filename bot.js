@@ -899,15 +899,6 @@ async function handleMessages(sock, messageBatch, sessionId = '__main__') {
         // participant is undefined), so chats appeared "stuck" as unread.
         if (finalAutoRead && !msg.key.fromMe) await sock.readMessages([msg.key]).catch(() => {});
         if (finalAutoTyping && !msg.key.fromMe) await sock.sendPresenceUpdate('composing', from).catch(() => {});
-        if (finalMentionReply && !msg.key.fromMe && text && sock.user?.id) {
-            const botNumber = sock.user.id.split(':')[0];
-            const mentioned = msg.message?.extendedTextMessage?.contextInfo?.mentionedJid || [];
-            const mentionsBot = mentioned.some((jid) => String(jid).startsWith(botNumber)) || text.includes(`@${botNumber}`);
-            if (mentionsBot && !text.startsWith(finalPrefix)) {
-                await sock.sendMessage(from, { text: finalMentionReply }, { quoted: msg }).catch(() => {});
-                continue;
-            }
-        }
 
         const prefix = finalPrefix;
         
@@ -920,6 +911,16 @@ async function handleMessages(sock, messageBatch, sessionId = '__main__') {
             (workMode === 'private' && from.endsWith('@g.us')) ||
             (workMode === 'group' && !from.endsWith('@g.us'))
         )) continue;
+
+        if (finalMentionReply && !msg.key.fromMe && text && sock.user?.id) {
+            const botNumber = sock.user.id.split(':')[0];
+            const mentioned = msg.message?.extendedTextMessage?.contextInfo?.mentionedJid || [];
+            const mentionsBot = mentioned.some((jid) => String(jid).startsWith(botNumber)) || text.includes(`@${botNumber}`);
+            if (mentionsBot && !text.startsWith(finalPrefix)) {
+                await sock.sendMessage(from, { text: finalMentionReply }, { quoted: msg }).catch(() => {});
+                continue;
+            }
+        }
 
         cacheMsg(msg);
 

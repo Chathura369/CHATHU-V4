@@ -496,6 +496,8 @@ async function startSocket(id, entry) {
 
                 if (isBadMac) {
                     logger(`[Session ${id}] ⚠️ Critical Session Corruption (Bad MAC) detected. Purging session for security.`);
+                    clearSessionProTimers(id);
+                    entry.sock = null;
                     try { fs.rmSync(sessionDir(id), { recursive: true, force: true }); } catch { }
                     registry.delete(id);
                     emit('session:removed', { id });
