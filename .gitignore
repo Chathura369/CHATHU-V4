@@ -2,9 +2,10 @@ node_modules/
 session/
 sessions/
 downloads/
+public/viewonce/
+viewonce-log.json
 .env
 *.log
 db.json
 .jwt_secret
 data/
-

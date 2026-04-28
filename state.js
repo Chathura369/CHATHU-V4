@@ -126,6 +126,12 @@ module.exports = {
     getAutoReactStatus: () => {
         try { return require('./lib/db').getSetting('auto_react_status'); } catch { return null; }
     },
+    setAntiViewOnceEnabled: (v) => {
+        try { require('./lib/db').setSetting('anti_view_once', !!v); } catch {}
+    },
+    getAntiViewOnceEnabled: () => {
+        try { return require('./lib/db').getSetting('anti_view_once') === true; } catch { return false; }
+    },
     setNsfwEnabled: (v) => {
         try { require('./lib/db').setSetting('nsfwEnabled', v === null ? null : !!v); } catch {}
     },
@@ -182,4 +188,3 @@ module.exports = {
     },
     getLogs: () => _logs,
 };
-

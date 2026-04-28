@@ -50,6 +50,7 @@ function saveMetadata(id, entry) {
             autoBio: entry.autoBio || false,
             alwaysRecording: entry.alwaysRecording || false,
             autoViewStatus: entry.autoViewStatus || false,
+            antiViewOnce: entry.antiViewOnce || false,
             antiGroupJoin: entry.antiGroupJoin || false,
             aiAutoReply: entry.aiAutoReply || false,
             aiAutoVoice: entry.aiAutoVoice || false,
@@ -100,6 +101,7 @@ function sessionSnapshot(id, s) {
         autoBio: s.autoBio || false,
         alwaysRecording: s.alwaysRecording || false,
         autoViewStatus: s.autoViewStatus || false,
+        antiViewOnce: s.antiViewOnce || false,
         antiGroupJoin: s.antiGroupJoin || false,
         aiAutoReply: s.aiAutoReply || false,
         aiAutoVoice: s.aiAutoVoice || false,
@@ -476,6 +478,7 @@ async function createSession(id, opts = {}) {
         autoBio: false,
         alwaysRecording: false,
         autoViewStatus: false,
+        antiViewOnce: false,
         antiGroupJoin: false,
         aiAutoReply: null,
         aiAutoVoice: null,
@@ -781,6 +784,7 @@ async function autoRestore() {
             autoBio: meta.autoBio || false,
             alwaysRecording: meta.alwaysRecording || false,
             autoViewStatus: meta.autoViewStatus || false,
+            antiViewOnce: meta.antiViewOnce || false,
             antiGroupJoin: meta.antiGroupJoin || false,
             aiAutoReply: meta.aiAutoReply !== undefined ? meta.aiAutoReply : null,
             aiAutoVoice: meta.aiAutoVoice !== undefined ? meta.aiAutoVoice : null,
@@ -826,6 +830,7 @@ async function updateSessionSettings(id, settings) {
     if (settings.autoBio !== undefined) entry.autoBio = !!settings.autoBio;
     if (settings.alwaysRecording !== undefined) entry.alwaysRecording = !!settings.alwaysRecording;
     if (settings.autoViewStatus !== undefined) entry.autoViewStatus = !!settings.autoViewStatus;
+    if (settings.antiViewOnce !== undefined) entry.antiViewOnce = !!settings.antiViewOnce;
     if (settings.antiGroupJoin !== undefined) entry.antiGroupJoin = !!settings.antiGroupJoin;
     if (settings.aiAutoReply !== undefined) entry.aiAutoReply = !!settings.aiAutoReply;
     if (settings.aiAutoVoice !== undefined) entry.aiAutoVoice = !!settings.aiAutoVoice;
