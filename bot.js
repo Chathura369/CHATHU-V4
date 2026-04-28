@@ -687,9 +687,11 @@ async function handleMessages(sock, messageBatch, sessionId = '__main__') {
     
     // Auto-view / Auto-react for status@broadcast are now independent of the
     // generic autoStatus flag — either global toggle alone is enough to trigger.
+    // Sub-sessions always have autoViewStatus initialized as a boolean by
+    // session-manager, so the third arg here is a documentation default.
     const finalAutoView = sessionId === '__main__'
         ? (mainOverrides.autoViewStatus !== undefined ? !!mainOverrides.autoViewStatus : !!getAutoViewStatus())
-        : !!getSessionFeature(sessionId, 'autoViewStatus', autoStatus !== false);
+        : !!getSessionFeature(sessionId, 'autoViewStatus', false);
 
 
     // Removed global early exit for !botEnabled so owners can wake it up    // Increment Processed Count
@@ -992,7 +994,13 @@ async function handleMessages(sock, messageBatch, sessionId = '__main__') {
         if (finalMentionReply && !msg.key.fromMe && text && sock.user?.id) {
             const botNumber = sock.user.id.split(':')[0];
             const mentioned = msg.message?.extendedTextMessage?.contextInfo?.mentionedJid || [];
-            const mentionsBot = mentioned.some((jid) => String(jid).startsWith(botNumber)) || text.includes(`@${botNumber}`);
+            const cleanText = text.toLowerCase();
+            const botNameLower = (finalBotName || '').toLowerCase();
+            const botNameFirstWord = botNameLower.split(/\s+/)[0] || '';
+            const mentionsBot = mentioned.some((jid) => String(jid).startsWith(botNumber))
+                || text.includes(`@${botNumber}`)
+                || (botNameLower.length > 2 && cleanText.includes(botNameLower))
+                || (botNameFirstWord.length > 2 && new RegExp(`(^|\\W)${botNameFirstWord.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(\\W|$)`).test(cleanText));
             if (mentionsBot && !text.startsWith(finalPrefix)) {
                 await sock.sendMessage(from, { text: finalMentionReply }, { quoted: msg }).catch(() => {});
                 continue;
