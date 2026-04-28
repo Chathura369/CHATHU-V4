@@ -827,6 +827,15 @@ app.post('/bot-api/sessions/:id/settings', authMiddleware, async (req, res) => {
 
             db.setSetting('main_bot_settings', overrides);
             db.flush();
+            const sock = appState.getSocket();
+            if (sock && (
+                req.body.alwaysOnline !== undefined ||
+                req.body.alwaysRecording !== undefined ||
+                req.body.autoBio !== undefined
+            )) {
+                const { refreshRuntimeFeatures } = require('./bot');
+                refreshRuntimeFeatures('__main__');
+            }
             
             const session = getMainSessionPayload();
             io.emit('session:update', session);

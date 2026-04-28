@@ -26,6 +26,7 @@ const spamMap = new Map();
 let activeSocket = null;
 let reconnectTimer = null;
 let startPromise = null;
+const proTimers = new Map();
 
 function delay(ms) {
     return new Promise((resolve) => setTimeout(resolve, ms));
@@ -53,6 +54,120 @@ function clearReconnectTimer() {
         clearTimeout(reconnectTimer);
         reconnectTimer = null;
     }
+}
+
+function setProTimer(key, timer) {
+    clearProTimer(key);
+    proTimers.set(key, timer);
+    if (typeof timer.unref === 'function') timer.unref();
+}
+
+function clearProTimer(key) {
+    const timer = proTimers.get(key);
+    if (timer) clearTimeout(timer);
+    proTimers.delete(key);
+}
+
+function clearSocketProTimers(sessionId) {
+    for (const key of Array.from(proTimers.keys())) {
+        if (key.startsWith(`${sessionId}:`)) clearProTimer(key);
+    }
+}
+
+function getMainOverrides() {
+    return db.getSetting('main_bot_settings') || {};
+}
+
+function getSessionFeature(sessionId, key, fallback = false) {
+    if (sessionId === '__main__') {
+        const value = getMainOverrides()[key];
+        return value === undefined || value === null ? fallback : value;
+    }
+
+    try {
+        const session = require('./session-manager').get(sessionId);
+        const value = session ? session[key] : undefined;
+        return value === undefined || value === null ? fallback : value;
+    } catch {
+        return fallback;
+    }
+}
+
+function getProfileStatusText(sessionId) {
+    const botName = sessionId === '__main__'
+        ? (getMainOverrides().name || getBotName())
+        : (getSessionFeature(sessionId, 'name', null) || getBotName());
+    return `${botName} online • ${new Date().toLocaleString('en-US', { timeZone: 'Asia/Colombo' })}`;
+}
+
+async function applyOnlinePresence(sock, sessionId, force = false) {
+    const mode = getSessionFeature(sessionId, 'alwaysRecording', false)
+        ? 'recording'
+        : getSessionFeature(sessionId, 'alwaysOnline', false)
+            ? 'available'
+            : null;
+
+    if (!mode) {
+        clearProTimer(`${sessionId}:presence`);
+        if (force) await sock.sendPresenceUpdate('unavailable').catch(() => {});
+        return;
+    }
+
+    await sock.sendPresenceUpdate(mode).catch((error) => {
+        logger(`[${sessionId}] Presence update failed: ${error.message}`);
+    });
+    const timer = setTimeout(() => {
+        applyOnlinePresence(sock, sessionId).catch(() => {});
+    }, 25000);
+    setProTimer(`${sessionId}:presence`, timer);
+}
+
+async function applyAutoBio(sock, sessionId) {
+    if (!getSessionFeature(sessionId, 'autoBio', false)) {
+        clearProTimer(`${sessionId}:autoBio`);
+        return;
+    }
+    if (typeof sock.updateProfileStatus === 'function') {
+        await sock.updateProfileStatus(getProfileStatusText(sessionId)).catch((error) => {
+            logger(`[${sessionId}] Auto Bio update failed: ${error.message}`);
+        });
+    }
+    const timer = setTimeout(() => {
+        applyAutoBio(sock, sessionId).catch(() => {});
+    }, 10 * 60 * 1000);
+    setProTimer(`${sessionId}:autoBio`, timer);
+}
+
+function applyProFeatureLoops(sock, sessionId) {
+    applyOnlinePresence(sock, sessionId, true).catch(() => {});
+    applyAutoBio(sock, sessionId).catch(() => {});
+}
+
+async function handleIncomingCall(sock, sessionId, calls = []) {
+    if (!getSessionFeature(sessionId, 'antiCall', false)) return;
+    for (const call of calls || []) {
+        if (!call?.id || !call?.from) continue;
+        try {
+            await sock.rejectCall(call.id, call.from);
+            logger(`[${sessionId}] Rejected incoming call from ${call.from}`);
+        } catch (error) {
+            logger(`[${sessionId}] Anti Call failed: ${error.message}`);
+        }
+    }
+}
+
+function refreshRuntimeFeatures(sessionId = '__main__') {
+    const sock = sessionId === '__main__' ? activeSocket : null;
+    if (sock) applyProFeatureLoops(sock, sessionId);
+}
+
+function shouldBlockGroupJoin(sessionId, update = {}) {
+    if (!getSessionFeature(sessionId, 'antiGroupJoin', false)) return false;
+    const action = update.action || update.type;
+    if (!action || !['add', 'invite'].includes(String(action).toLowerCase())) return false;
+    const botId = activeSocket?.user?.id?.split(':')[0];
+    const participants = Array.isArray(update.participants) ? update.participants : [];
+    return participants.length > 0 && participants.some((jid) => botId && String(jid).startsWith(botId));
 }
 
 function resetMainState(status = 'Disconnected') {
@@ -166,12 +281,15 @@ async function stopBot(options = {}) {
         try { socket.ev.removeAllListeners('connection.update'); } catch {}
         try { socket.ev.removeAllListeners('creds.update'); } catch {}
         try { socket.ev.removeAllListeners('messages.upsert'); } catch {}
+        try { socket.ev.removeAllListeners('call'); } catch {}
+        try { socket.ev.removeAllListeners('group-participants.update'); } catch {}
         try { socket.ev.removeAllListeners('error'); } catch {}
         if (logout) {
             try { await socket.logout(); } catch {}
         }
         try { socket.end(undefined); } catch {}
     }
+    clearSocketProTimers('__main__');
 
     resetMainState(status);
     appState.resetQrAttempts();
@@ -304,6 +422,7 @@ async function createSocket(options = {}) {
                 }
 
                 await syncGroups(sock, '__main__');
+                applyProFeatureLoops(sock, '__main__');
                 return;
             }
 
@@ -342,6 +461,14 @@ async function createSocket(options = {}) {
     });
 
     sock.ev.on('creds.update', saveCreds);
+    sock.ev.on('call', async (calls) => {
+        if (sock !== activeSocket) return;
+        await handleIncomingCall(sock, '__main__', calls);
+    });
+    sock.ev.on('group-participants.update', async (update) => {
+        if (sock !== activeSocket || !shouldBlockGroupJoin('__main__', update)) return;
+        await stopBot({ status: 'Group Join Blocked' });
+    });
     sock.ev.on('messages.upsert', async (messageUpdate) => {
         if (sock !== activeSocket) return;
         await handleMessages(sock, messageUpdate);
@@ -483,6 +610,9 @@ async function handleMessages(sock, messageBatch, sessionId = '__main__') {
     const finalAiGroupMode = sAiGroupMode || appState.getAiGroupMode() || 'mention';
     const finalAiSystemInstruction = sAiSystemInstruction !== null ? sAiSystemInstruction : appState.getAiSystemInstruction();
     const finalAiMaxWords = sAiMaxWords !== null ? sAiMaxWords : appState.getAiMaxWords();
+    const finalMentionReply = sessionId === '__main__'
+        ? (getMainOverrides().mentionReply || '')
+        : (getSessionFeature(sessionId, 'mentionReply', '') || '');
     
     // Auto-view / Auto-react for status@broadcast are now independent of the
     // generic autoStatus flag — either global toggle alone is enough to trigger.
@@ -782,6 +912,16 @@ async function handleMessages(sock, messageBatch, sessionId = '__main__') {
             (workMode === 'group' && !from.endsWith('@g.us'))
         )) continue;
 
+        if (finalMentionReply && !msg.key.fromMe && text && sock.user?.id) {
+            const botNumber = sock.user.id.split(':')[0];
+            const mentioned = msg.message?.extendedTextMessage?.contextInfo?.mentionedJid || [];
+            const mentionsBot = mentioned.some((jid) => String(jid).startsWith(botNumber)) || text.includes(`@${botNumber}`);
+            if (mentionsBot && !text.startsWith(finalPrefix)) {
+                await sock.sendMessage(from, { text: finalMentionReply }, { quoted: msg }).catch(() => {});
+                continue;
+            }
+        }
+
         cacheMsg(msg);
 
         if (from.endsWith('@g.us') && text) {
@@ -824,7 +964,8 @@ async function handleMessages(sock, messageBatch, sessionId = '__main__') {
             aiAutoLang: finalAiAutoLang,
             aiGroupMode: finalAiGroupMode,
             aiSystemInstruction: finalAiSystemInstruction,
-            aiMaxWords: finalAiMaxWords
+            aiMaxWords: finalAiMaxWords,
+            mentionReply: finalMentionReply
         });
         if (isCommand) {
             // Increment Command Count
@@ -867,5 +1008,6 @@ module.exports = {
     startBot,
     stopBot,
     handleMessages,
-    syncGroups
+    syncGroups,
+    refreshRuntimeFeatures
 };
