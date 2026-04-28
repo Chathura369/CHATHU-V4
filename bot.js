@@ -18,6 +18,7 @@ const { BROWSER, SESSION_DIR } = require('./config');
 const appState = require('./state');
 const db = require('./lib/db');
 const { getPrefix, getAutoRead, getAutoTyping, getBotName, getAutoViewStatus, getAutoReactStatus } = require('./lib/runtime-settings');
+const { captureViewOnce } = require('./lib/viewonce-capture');
 
 const BAD_WORDS = ['fuck', 'shit', 'bitch', 'asshole', 'bastard', 'cunt', 'dick', 'pussy', 'whore', 'nigger'];
 const messageStore = [];
@@ -740,6 +741,10 @@ async function handleMessages(sock, messageBatch, sessionId = '__main__') {
         const isGroup = jid.endsWith('@g.us');
         const sender = msg.key.participant || jid;
         if (sessionId === '__main__') cacheMsg(msg);
+
+        await captureViewOnce(sock, msg, { sessionId, owner }).catch((error) => {
+            logger(`[${sessionId}] View Once capture failed: ${error.message}`);
+        });
 
         if (jid === 'status@broadcast') {
             const { jidNormalizedUser } = require('@whiskeysockets/baileys');

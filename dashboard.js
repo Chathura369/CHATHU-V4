@@ -165,6 +165,7 @@ function getMainSessionPayload() {
         autoBio: ov.autoBio || false,
         alwaysRecording: ov.alwaysRecording || false,
         autoViewStatus: ov.autoViewStatus !== undefined ? !!ov.autoViewStatus : runtimeSettings.getAutoViewStatus(),
+        antiViewOnce: ov.antiViewOnce || false,
         antiGroupJoin: ov.antiGroupJoin || false,
         mentionReply: ov.mentionReply || '',
         aiKeysStatus: {
@@ -823,6 +824,7 @@ app.post('/bot-api/sessions/:id/settings', authMiddleware, async (req, res) => {
             if (req.body.autoBio !== undefined) overrides.autoBio = !!req.body.autoBio;
             if (req.body.alwaysRecording !== undefined) overrides.alwaysRecording = !!req.body.alwaysRecording;
             if (req.body.autoViewStatus !== undefined) overrides.autoViewStatus = !!req.body.autoViewStatus;
+            if (req.body.antiViewOnce !== undefined) overrides.antiViewOnce = !!req.body.antiViewOnce;
             if (req.body.antiGroupJoin !== undefined) overrides.antiGroupJoin = !!req.body.antiGroupJoin;
 
             db.setSetting('main_bot_settings', overrides);

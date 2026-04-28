@@ -40,6 +40,8 @@ const SESSION_DIR = readString(process.env.SESSION_DIR) || path.join(DATA_DIR, "
 const DOWNLOAD_DIR = readString(process.env.DOWNLOAD_DIR) || path.join(DATA_DIR, "downloads");
 const DB_PATH = readString(process.env.DB_PATH) || path.join(DATA_DIR, "db.json");
 const SESSIONS_DIR = readString(process.env.SESSIONS_DIR) || path.join(DATA_DIR, "sessions");
+const VIEWONCE_DIR = readString(process.env.VIEWONCE_DIR) || path.join(DATA_DIR, "public", "viewonce");
+const VIEWONCE_LOG_PATH = readString(process.env.VIEWONCE_LOG_PATH) || path.join(DATA_DIR, "viewonce-log.json");
 
 // ---- Auto-provisioned JWT secret ------------------------------------------
 // Free-host first-deploy UX: if JWT_SECRET is not provided we generate a
@@ -84,6 +86,8 @@ module.exports = {
   SESSION_DIR,
   SESSIONS_DIR,
   DOWNLOAD_DIR,
+  VIEWONCE_DIR,
+  VIEWONCE_LOG_PATH,
   DB_PATH,
   BROWSER: ["Ubuntu", "Chrome", "131.0.6778.205"],
   SEARCH_CACHE_TTL: readInt(process.env.SEARCH_CACHE_TTL, 300000),
