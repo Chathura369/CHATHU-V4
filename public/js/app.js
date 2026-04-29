@@ -1033,6 +1033,54 @@
       return (State.data.sessions || []).find(x => normalizeSessionId(x.id) === target);
     }
 
+    function getManagedUserKey(user) {
+      if (!user) return '';
+      return user.realJid || user.jid || '';
+    }
+
+    function findManagedUserEntry(jid) {
+      const target = String(jid || '').trim();
+      return (State.data.users || []).find((entry) => entry.jid === target || entry.realJid === target) || null;
+    }
+
+    function upsertManagedUser(user) {
+      if (!user?.jid) return null;
+      const userKey = getManagedUserKey(user);
+      const index = State.data.users.findIndex((entry) => entry.jid === user.jid || getManagedUserKey(entry) === userKey);
+      if (index >= 0) State.data.users[index] = { ...State.data.users[index], ...user };
+      else State.data.users.push(user);
+      State.data.users.sort((a, b) => {
+        const ownerDelta = Number(!!b.isOwner) - Number(!!a.isOwner);
+        if (ownerDelta) return ownerDelta;
+        const premiumDelta = Number(!!b.premium) - Number(!!a.premium);
+        if (premiumDelta) return premiumDelta;
+        return String(a.pushName || a.number || a.jid).localeCompare(String(b.pushName || b.number || b.jid));
+      });
+      return State.data.users.find((entry) => entry.jid === user.jid);
+    }
+
+    function removeManagedUser(jid) {
+      const target = String(jid || '').trim();
+      State.data.users = (State.data.users || []).filter((entry) => entry.jid !== target && getManagedUserKey(entry) !== target);
+    }
+
+    function upsertGroupItem(group) {
+      if (!group?.jid) return null;
+      const index = State.data.groups.findIndex((entry) => entry.jid === group.jid);
+      if (index >= 0) State.data.groups[index] = { ...State.data.groups[index], ...group };
+      else State.data.groups.push(group);
+      State.data.groups.sort((a, b) => String(a.name || a.jid).localeCompare(String(b.name || b.jid)));
+      return State.data.groups.find((entry) => entry.jid === group.jid);
+    }
+
+    function removeGroupFromState(jid) {
+      State.data.groups = (State.data.groups || []).filter((entry) => entry.jid !== jid);
+    }
+
+    function removeAutoReplyRule(id) {
+      State.data.autoReply = (State.data.autoReply || []).filter((entry) => entry.id !== id);
+    }
+
     function setChecked(id, value) {
       const el = document.getElementById(id);
       if (el) el.checked = !!value;

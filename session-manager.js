@@ -20,7 +20,7 @@ const path = require('path');
 const { logger } = require('./logger');
 const { normalizeOwner } = require('./lib/utils');
 
-const VALID_WORK_MODES = new Set(['public', 'private', 'self']);
+const VALID_WORK_MODES = new Set(['public', 'private', 'self', 'group']);
 
 function metadataPath(id) {
     return path.join(SESSIONS_DIR, id, 'metadata.json');
