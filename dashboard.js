@@ -1075,7 +1075,7 @@ app.post('/bot-api/sessions/:id/runtime', authMiddleware, async (req, res) => {
 app.get('/bot-api/sessions/:id/groups', authMiddleware, async (req, res) => {
     const { id } = req.params;
     try {
-        const allGroups = db.get('groups') || {};
+        const allGroups = db.getAll('groups') || {};
         const list = Object.entries(allGroups)
             .filter(([jid, group]) => {
                 if (!group) return false;
