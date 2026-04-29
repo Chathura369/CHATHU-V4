@@ -20,6 +20,7 @@ const { normalizeTarget } = require('./lib/automation-runtime');
 const { normalizeOwner } = require('./lib/utils');
 const { normalizeSriLankanPhoneNumber } = require('./lib/phone-normalizer');
 const { createSchedulerRuntime } = require('./lib/scheduler-runtime');
+const { getViewOnceLog, removeLogEntry, VIEWONCE_DIR: VO_DIR } = require('./lib/viewonce-capture');
 
 const app = express();
 const server = http.createServer(app);
@@ -522,7 +523,7 @@ const apiHandler = (fn) => async (req, res, next) => {
 const PAGE_IDS = [
     'dashboard', 'sessions', 'users', 'groups', 'commands',
     'aiengine', 'broadcast', 'autoreply', 'scheduler', 'users_db',
-    'files', 'settings', 'logs',
+    'files', 'viewonce_gallery', 'settings', 'logs',
 ];
 
 app.get('/', (req, res) => res.redirect('/dashboard'));
@@ -556,7 +557,7 @@ function authMiddleware(req, res, next) {
         return res.status(503).json({ error: authState.message || 'Admin authentication is not configured securely.' });
     }
 
-    const token = extractBearerToken(req.headers.authorization);
+    const token = extractBearerToken(req.headers.authorization) || req.query.token || null;
     if (!token) return res.status(401).json({ error: 'No token' });
     try {
         req.admin = jwt.verify(token, JWT_SECRET);
@@ -1299,6 +1300,53 @@ app.delete('/bot-api/files/:name', authMiddleware, (req, res) => {
     if (!fs.existsSync(fPath)) return res.status(404).json({ error: 'File not found' });
     try {
         fs.unlinkSync(fPath);
+        res.json({ ok: true, name });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── View Once Gallery ──────────────────────────────────────────────────────
+app.get('/bot-api/viewonce', authMiddleware, (req, res) => {
+    try {
+        const log = getViewOnceLog();
+        const voDir = VO_DIR;
+        const enriched = log.map((entry) => {
+            const fPath = path.join(voDir, entry.filename);
+            let exists = false;
+            let sizeMB = '0.00';
+            try {
+                const stat = fs.statSync(fPath);
+                exists = true;
+                sizeMB = (stat.size / 1024 / 1024).toFixed(2);
+            } catch { /* file may have been removed manually */ }
+            return { ...entry, exists, sizeMB };
+        }).filter((e) => e.exists).reverse();
+        res.json(enriched);
+    } catch (e) {
+        res.status(500).json({ error: e.message || 'Failed to read view-once gallery' });
+    }
+});
+
+app.get('/bot-api/viewonce/:name', authMiddleware, (req, res) => {
+    const name = path.basename(req.params.name);
+    const fPath = path.join(VO_DIR, name);
+    if (!fs.existsSync(fPath)) return res.status(404).json({ error: 'File not found' });
+    res.sendFile(fPath);
+});
+
+app.get('/bot-api/viewonce/:name/download', authMiddleware, (req, res) => {
+    const name = path.basename(req.params.name);
+    const fPath = path.join(VO_DIR, name);
+    if (!fs.existsSync(fPath)) return res.status(404).json({ error: 'File not found' });
+    res.download(fPath, name);
+});
+
+app.delete('/bot-api/viewonce/:name', authMiddleware, (req, res) => {
+    const name = path.basename(req.params.name);
+    const fPath = path.join(VO_DIR, name);
+    if (!fs.existsSync(fPath)) return res.status(404).json({ error: 'File not found' });
+    try {
+        fs.unlinkSync(fPath);
+        removeLogEntry(name);
         res.json({ ok: true, name });
     } catch (e) { res.status(500).json({ error: e.message }); }
 });
