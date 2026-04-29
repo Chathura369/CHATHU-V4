@@ -1055,6 +1055,8 @@ app.post('/bot-api/sessions/:id/runtime', authMiddleware, async (req, res) => {
                 if (sock && typeof sock.groupFetchAllParticipating === 'function') {
                     try { await sock.groupFetchAllParticipating(); } catch { /* best-effort */ }
                 }
+            } else {
+                return res.status(400).json({ error: 'Unknown op' });
             }
             db.setSetting('main_bot_settings', overrides);
             db.flush();
