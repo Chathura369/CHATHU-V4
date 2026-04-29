@@ -557,7 +557,7 @@ function authMiddleware(req, res, next) {
         return res.status(503).json({ error: authState.message || 'Admin authentication is not configured securely.' });
     }
 
-    const token = extractBearerToken(req.headers.authorization) || req.query.token || null;
+    const token = extractBearerToken(req.headers.authorization) || null;
     if (!token) return res.status(401).json({ error: 'No token' });
     try {
         req.admin = jwt.verify(token, JWT_SECRET);
@@ -1305,6 +1305,14 @@ app.delete('/bot-api/files/:name', authMiddleware, (req, res) => {
 });
 
 // ── View Once Gallery ──────────────────────────────────────────────────────
+// Scoped middleware: also accepts ?token= for img/video src attributes
+function authWithQueryToken(req, res, next) {
+    if (!extractBearerToken(req.headers.authorization) && req.query.token) {
+        req.headers.authorization = 'Bearer ' + req.query.token;
+    }
+    authMiddleware(req, res, next);
+}
+
 app.get('/bot-api/viewonce', authMiddleware, (req, res) => {
     try {
         const log = getViewOnceLog();
@@ -1326,14 +1334,14 @@ app.get('/bot-api/viewonce', authMiddleware, (req, res) => {
     }
 });
 
-app.get('/bot-api/viewonce/:name', authMiddleware, (req, res) => {
+app.get('/bot-api/viewonce/:name', authWithQueryToken, (req, res) => {
     const name = path.basename(req.params.name);
     const fPath = path.join(VO_DIR, name);
     if (!fs.existsSync(fPath)) return res.status(404).json({ error: 'File not found' });
     res.sendFile(fPath);
 });
 
-app.get('/bot-api/viewonce/:name/download', authMiddleware, (req, res) => {
+app.get('/bot-api/viewonce/:name/download', authWithQueryToken, (req, res) => {
     const name = path.basename(req.params.name);
     const fPath = path.join(VO_DIR, name);
     if (!fs.existsSync(fPath)) return res.status(404).json({ error: 'File not found' });

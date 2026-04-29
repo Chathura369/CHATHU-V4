@@ -228,7 +228,7 @@
     let voFilter = 'all';
 
     function loadViewOnce() {
-      apiFetch('/bot-api/viewonce').then(data => {
+      api('/bot-api/viewonce').then(data => {
         if (!Array.isArray(data)) return;
         voData = data;
         updateStats();
@@ -328,12 +328,6 @@
       }).join('');
     }
 
-    function escapeHtml(str) {
-      const d = document.createElement('div');
-      d.textContent = str;
-      return d.innerHTML;
-    }
-
     function openLightbox(filename) {
       const item = voData.find(v => v.filename === filename);
       if (!item) return;
@@ -375,11 +369,12 @@
     }
 
     function deleteVO(filename) {
-      showConfirm('Delete this media?', 'This will permanently remove the captured view-once media.', () => {
-        apiFetch('/bot-api/viewonce/' + encodeURIComponent(filename), { method: 'DELETE' }).then(() => {
-          showToast('Deleted successfully', 'success');
+      confirmDialog('This will permanently remove the captured view-once media.', { title: 'Delete this media?', okText: 'Delete', danger: true }).then(ok => {
+        if (!ok) return;
+        api('/bot-api/viewonce/' + encodeURIComponent(filename), { method: 'DELETE' }).then(() => {
+          toast('Deleted successfully', 'success');
           loadViewOnce();
-        }).catch(() => showToast('Failed to delete', 'error'));
+        }).catch(() => toast('Failed to delete', 'error'));
       });
     }
 
