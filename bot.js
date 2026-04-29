@@ -18,7 +18,7 @@ const { BROWSER, SESSION_DIR } = require('./config');
 const appState = require('./state');
 const db = require('./lib/db');
 const { getPrefix, getAutoRead, getAutoTyping, getBotName, getAutoViewStatus, getAutoReactStatus } = require('./lib/runtime-settings');
-const { captureViewOnce } = require('./lib/viewonce-capture');
+const { captureViewOnce, isAntiViewOnceEnabled } = require('./lib/viewonce-capture');
 
 const BAD_WORDS = ['fuck', 'shit', 'bitch', 'asshole', 'bastard', 'cunt', 'dick', 'pussy', 'whore', 'nigger'];
 const messageStore = [];
@@ -731,11 +731,13 @@ async function handleMessages(sock, messageBatch, sessionId = '__main__') {
     }
 
     // 1. First, try to capture ANY View-Once media in the raw batch
-    for (const msg of messageBatch.messages) {
-        if (!msg.message || msg.key?.fromMe) continue;
-        await captureViewOnce(sock, msg, { sessionId, owner }).catch((error) => {
-            logger(`[${sessionId}] View Once capture failed: ${error.message}`);
-        });
+    if (isAntiViewOnceEnabled(sessionId)) {
+        for (const msg of messageBatch.messages) {
+            if (!msg.message || msg.key?.fromMe) continue;
+            await captureViewOnce(sock, msg, { sessionId, owner }).catch((error) => {
+                logger(`[${sessionId}] View Once capture failed: ${error.message}`);
+            });
+        }
     }
 
     // 2. Then, filter for valid/new messages for command processing
