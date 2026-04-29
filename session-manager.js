@@ -59,7 +59,10 @@ function saveMetadata(id, entry) {
             aiGroupMode: entry.aiGroupMode || null,
             aiSystemInstruction: entry.aiSystemInstruction || '',
             aiMaxWords: entry.aiMaxWords || null,
-            mentionReply: entry.mentionReply || ''
+            mentionReply: entry.mentionReply || '',
+            privacyAutoCleanup: !!entry.privacyAutoCleanup,
+            privacyMaxStorageMb: entry.privacyMaxStorageMb || 500,
+            limits: entry.limits || {}
         };
         fs.writeFileSync(metadataPath(id), JSON.stringify(data, null, 2));
     } catch (e) {
@@ -800,6 +803,9 @@ async function autoRestore() {
             aiSystemInstruction: meta.aiSystemInstruction || '',
             aiMaxWords: meta.aiMaxWords || null,
             mentionReply: meta.mentionReply || '',
+            privacyAutoCleanup: !!meta.privacyAutoCleanup,
+            privacyMaxStorageMb: meta.privacyMaxStorageMb || 500,
+            limits: meta.limits || {},
             isMain: false
         };
         registry.set(id, entry);

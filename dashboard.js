@@ -1064,6 +1064,7 @@ app.post('/bot-api/sessions/:id/runtime', authMiddleware, async (req, res) => {
         }
         const sessionMgr = require('./session-manager');
         const result = sessionMgr.runRuntimeOp ? await sessionMgr.runRuntimeOp(id, op) : { ok: true };
+        if (result?.error) return res.status(400).json(result);
         return res.json(result || { ok: true });
     } catch (e) { res.status(500).json({ error: e.message }); }
 });
