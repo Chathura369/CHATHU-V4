@@ -17,7 +17,7 @@
 - **📅 Advanced Scheduler**: Plan and automate your messages, broadcasts, and tasks with precision.
 - **⚡ real-time Telemetry**: Live log streaming and system resource monitoring (CPU, Memory, Network) directly in your browser.
 - **🛡️ Shield Protection**: Military-grade Anti-Link, Anti-Spam, and Anti-Call features.
-- **📸 View Once Capture**: Automatically capture and save "View Once" media to the `public/viewonce/` folder (Strict detection).
+- **📸 View Once Capture**: Automatically capture and save "View Once" media to `${DATA_DIR}/viewonce/` (defaults to `./viewonce/` locally) and surface them in the dashboard's View Once Gallery (Strict detection).
 - **🎭 Theme Engine**: Dynamic UI themes (Dark, Light, Aurora, Neon) to match your style.
 - **🌸 100+ Pro Commands**: Extensive library for Media Downloads (YouTube, TikTok, FB, IG), AI Tools, Fun, Search, and Owner utilities.
 
