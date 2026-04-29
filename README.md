@@ -2,7 +2,7 @@
 
 [![Node.js](https://img.shields.io/badge/Node.js-18%2B-green.svg)](https://nodejs.org/)
 [![WhatsApp](https://img.shields.io/badge/WhatsApp-Baileys-blue.svg)](https://github.com/WhiskeySockets/Baileys)
-[![Version](https://img.shields.io/badge/Version-3.0.0--Pro-purple.svg)](https://github.com/Chathura369/CHATHUMD-V3)
+[![Version](https://img.shields.io/badge/Version-4.0.0--Pro-purple.svg)](https://github.com/chathura4003-blip/CHATHU-V4)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 **CHATHU MD V3** is the next generation of WhatsApp automation. Featuring the state-of-the-art **Cyber-Glass Pro Dashboard**, this bot offers enterprise-grade stability, AI-powered interactions, and a premium administrative experience.
@@ -16,7 +16,8 @@
 - **🚀 Fleet Orchestration**: Manage multiple bot sessions simultaneously from a single unified interface.
 - **📅 Advanced Scheduler**: Plan and automate your messages, broadcasts, and tasks with precision.
 - **⚡ real-time Telemetry**: Live log streaming and system resource monitoring (CPU, Memory, Network) directly in your browser.
-- **🛡️ Shield Protection**: Military-grade Anti-Link, Anti-Spam, and Anti-Call features to keep your groups safe.
+- **🛡️ Shield Protection**: Military-grade Anti-Link, Anti-Spam, and Anti-Call features.
+- **📸 View Once Capture**: Automatically capture and save "View Once" media to the `public/viewonce/` folder (Strict detection).
 - **🎭 Theme Engine**: Dynamic UI themes (Dark, Light, Aurora, Neon) to match your style.
 - **🌸 100+ Pro Commands**: Extensive library for Media Downloads (YouTube, TikTok, FB, IG), AI Tools, Fun, Search, and Owner utilities.
 
@@ -34,8 +35,8 @@
 
 ```bash
 # Clone the repository
-git clone https://github.com/Chathura369/CHATHUMD-V3.git
-cd CHATHUMD-V3
+git clone https://github.com/chathura4003-blip/CHATHU-V4.git
+cd CHATHU-V4
 
 # Install dependencies
 npm install
