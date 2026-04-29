@@ -1168,7 +1168,7 @@ app.post('/bot-api/settings', authMiddleware, (req, res) => {
         if (autoTyping !== undefined) db.setSetting('autoTyping', !!autoTyping);
         if (nsfwEnabled !== undefined) db.setSetting('nsfwEnabled', !!nsfwEnabled);
         if (workMode !== undefined) {
-            const normalizedWorkMode = ['public', 'private', 'self'].includes(String(workMode).toLowerCase())
+            const normalizedWorkMode = ['public', 'private', 'self', 'group'].includes(String(workMode).toLowerCase())
                 ? String(workMode).toLowerCase()
                 : 'public';
             db.setSetting('work_mode', normalizedWorkMode);

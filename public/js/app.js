@@ -1567,9 +1567,9 @@
     }
 
     function renderBotLimits() {
-      // Inputs are bound from sync; nothing dynamic to recompute here yet.
-      const s = getActiveBotSession();
-      if (s) syncBotSettingsModal(s);
+      // Inputs are already bound by syncBotSettingsModal on modal open.
+      // Do NOT call syncBotSettingsModal here — it would wipe unsaved
+      // changes in every other tab.
     }
 
     function getActiveLogFilters() {
