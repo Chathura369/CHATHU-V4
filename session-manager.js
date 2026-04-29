@@ -51,6 +51,7 @@ function saveMetadata(id, entry) {
             alwaysRecording: entry.alwaysRecording || false,
             autoViewStatus: entry.autoViewStatus || false,
             antiViewOnce: entry.antiViewOnce || false,
+            privacyIgnoreGroups: entry.privacyIgnoreGroups || false,
             antiGroupJoin: entry.antiGroupJoin || false,
             aiAutoReply: entry.aiAutoReply || false,
             aiAutoVoice: entry.aiAutoVoice || false,
@@ -794,6 +795,7 @@ async function autoRestore() {
             alwaysRecording: meta.alwaysRecording || false,
             autoViewStatus: meta.autoViewStatus || false,
             antiViewOnce: meta.antiViewOnce || false,
+            privacyIgnoreGroups: meta.privacyIgnoreGroups || false,
             antiGroupJoin: meta.antiGroupJoin || false,
             aiAutoReply: meta.aiAutoReply !== undefined ? meta.aiAutoReply : null,
             aiAutoVoice: meta.aiAutoVoice !== undefined ? meta.aiAutoVoice : null,
@@ -854,6 +856,16 @@ async function updateSessionSettings(id, settings) {
     if (settings.mentionReply !== undefined) entry.mentionReply = String(settings.mentionReply);
     if (settings.privacyAutoCleanup !== undefined) entry.privacyAutoCleanup = !!settings.privacyAutoCleanup;
     if (settings.privacyMaxStorageMb !== undefined) entry.privacyMaxStorageMb = parseInt(settings.privacyMaxStorageMb) || 500;
+    
+    if (settings.activeTheme !== undefined) {
+        try {
+            require('./lib/db').setSetting('active_theme', String(settings.activeTheme));
+        } catch (e) {
+            logger(`[Session ${id}] Failed to save global theme: ${e.message}`);
+        }
+    }
+
+    saveMetadata(id, entry);
     if (settings.limits !== undefined && typeof settings.limits === 'object' && settings.limits) {
         entry.limits = {
             cmdPerMin: parseInt(settings.limits.cmdPerMin) || 0,
@@ -865,7 +877,7 @@ async function updateSessionSettings(id, settings) {
             schedulerDelayMs: parseInt(settings.limits.schedulerDelayMs) || 0,
         };
     }
-    if (settings.alwaysOnline !== undefined || settings.alwaysRecording !== undefined || settings.autoBio !== undefined) {
+    if (settings.alwaysOnline !== undefined || settings.alwaysRecording !== undefined || settings.autoBio !== undefined || settings.name !== undefined) {
         applyProFeatureLoops(id, entry);
     }
 

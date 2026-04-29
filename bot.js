@@ -34,8 +34,10 @@ function delay(ms) {
 }
 
 function cacheMsg(msg) {
+    if (!msg?.message || !msg?.key?.id) return;
     messageStore.push(msg);
-    if (messageStore.length > 100) messageStore.shift();
+    // Increase limit to 1000 for multi-session support
+    if (messageStore.length > 1000) messageStore.shift();
 }
 
 function getCachedMsg(jid, id) {
@@ -102,6 +104,8 @@ function getProfileStatusText(sessionId) {
 }
 
 async function applyOnlinePresence(sock, sessionId, force = false) {
+    if (!sock?.user) return; // Baileys requires user object to encode JID for presence
+
     const mode = getSessionFeature(sessionId, 'alwaysRecording', false)
         ? 'recording'
         : getSessionFeature(sessionId, 'alwaysOnline', false)
@@ -110,7 +114,7 @@ async function applyOnlinePresence(sock, sessionId, force = false) {
 
     if (!mode) {
         clearProTimer(`${sessionId}:presence`);
-        if (force) await sock.sendPresenceUpdate('unavailable').catch(() => {});
+        if (force) await sock.sendPresenceUpdate('unavailable').catch(() => { });
         return;
     }
 
@@ -118,7 +122,7 @@ async function applyOnlinePresence(sock, sessionId, force = false) {
         logger(`[${sessionId}] Presence update failed: ${error.message}`);
     });
     const timer = setTimeout(() => {
-        applyOnlinePresence(sock, sessionId).catch(() => {});
+        applyOnlinePresence(sock, sessionId).catch(() => { });
     }, 25000);
     setProTimer(`${sessionId}:presence`, timer);
 }
@@ -134,14 +138,14 @@ async function applyAutoBio(sock, sessionId) {
         });
     }
     const timer = setTimeout(() => {
-        applyAutoBio(sock, sessionId).catch(() => {});
+        applyAutoBio(sock, sessionId).catch(() => { });
     }, 10 * 60 * 1000);
     setProTimer(`${sessionId}:autoBio`, timer);
 }
 
 function applyProFeatureLoops(sock, sessionId) {
-    applyOnlinePresence(sock, sessionId, true).catch(() => {});
-    applyAutoBio(sock, sessionId).catch(() => {});
+    applyOnlinePresence(sock, sessionId, true).catch(() => { });
+    applyAutoBio(sock, sessionId).catch(() => { });
 }
 
 async function handleIncomingCall(sock, sessionId, calls = []) {
@@ -174,8 +178,11 @@ function shouldBlockGroupJoin(sessionId, update = {}) {
 function getAntiDeleteConfig(sessionId) {
     const value = getSessionFeature(sessionId, 'antiDelete', false);
     if (!value) return null;
-    if (typeof value === 'object') return value.enabled === false ? null : value;
-    return value === true ? { enabled: true } : null;
+    if (typeof value === 'object') {
+        if (value.enabled === false) return null;
+        return { ...value, target: value.target || 'chat' };
+    }
+    return value === true ? { enabled: true, target: 'chat' } : null;
 }
 
 function getAntiDeleteMessageKind(message = {}) {
@@ -191,6 +198,8 @@ async function handleAntiDelete(sock, sessionId, key = {}) {
     const cfg = getAntiDeleteConfig(sessionId);
     if (!cfg) return;
 
+    if (cfg.ignoreGroups === true && key.remoteJid.endsWith('@g.us')) return;
+
     const cached = getCachedMsg(key.remoteJid, key.id);
     if (!cached?.message || cached.key?.fromMe) return;
 
@@ -199,31 +208,45 @@ async function handleAntiDelete(sock, sessionId, key = {}) {
     if (filters && filters[kind] === false) return;
 
     let destJid = cached.key.remoteJid;
-    if (cfg.target === 'owner') {
-        const owner = sessionId === '__main__'
-            ? (getMainOverrides().owner || appState.getOwner())
-            : getSessionFeature(sessionId, 'owner', null);
-        const digits = String(owner || '').replace(/\D/g, '');
-        if (digits) destJid = `${digits}@s.whatsapp.net`;
+    const targetMode = String(cfg.target || 'chat').toLowerCase();
+
+    if (targetMode === 'owner') {
+        // Force routing ONLY to the bot's own "YOU" chat, ignoring all other owner settings
+        const myId = sock?.user?.id;
+        if (myId) {
+            destJid = myId.split(':')[0] + '@s.whatsapp.net';
+        } else {
+            // Failsafe fallback only if bot ID is somehow missing
+            destJid = appState.getOwner() || cached.key.remoteJid;
+        }
     }
+
+    logger(`[${sessionId}] Anti-Delete: mode=${targetMode} | routing from ${cached.key.remoteJid} to ${destJid}`);
 
     const senderRaw = cached.key.participant || cached.key.remoteJid || '';
     const senderTag = senderRaw.split('@')[0] || 'unknown';
     const banner = `🛡 *Anti-Delete Recovery*\n👤 From: @${senderTag}\n🗑 Original chat: ${cached.key.remoteJid}\n⏱ ${new Date().toLocaleString()}`;
 
+    // Send banner first
     await sock.sendMessage(destJid, {
         text: banner,
         mentions: senderRaw && senderRaw.includes('@') ? [senderRaw] : [],
     }).catch((error) => logger(`[${sessionId}] Anti Delete banner failed: ${error.message}`));
 
-    await sock.relayMessage(destJid, cached.message, { messageId: cached.key.id }).catch(async (error) => {
-        const text = cached.message.conversation || cached.message.extendedTextMessage?.text || '';
-        if (text) {
-            await sock.sendMessage(destJid, { text: `📝 ${text}` }).catch(() => {});
-        } else {
-            logger(`[${sessionId}] Anti Delete relay failed (${kind}): ${error.message}`);
-        }
-    });
+    // Forward the message content
+    try {
+        await sock.sendMessage(destJid, { forward: cached }, { quoted: cached });
+    } catch (error) {
+        // Fallback for complex messages
+        await sock.relayMessage(destJid, cached.message, { messageId: cached.key.id }).catch(async (err) => {
+            const text = cached.message.conversation || cached.message.extendedTextMessage?.text || '';
+            if (text) {
+                await sock.sendMessage(destJid, { text: `📝 ${text}` }).catch(() => { });
+            } else {
+                logger(`[${sessionId}] Anti Delete recovery failed: ${err.message}`);
+            }
+        });
+    }
 }
 
 function resetMainState(status = 'Disconnected') {
@@ -334,17 +357,17 @@ async function stopBot(options = {}) {
     activeSocket = null;
 
     if (socket) {
-        try { socket.ev.removeAllListeners('connection.update'); } catch {}
-        try { socket.ev.removeAllListeners('creds.update'); } catch {}
-        try { socket.ev.removeAllListeners('messages.upsert'); } catch {}
-        try { socket.ev.removeAllListeners('messages.update'); } catch {}
-        try { socket.ev.removeAllListeners('call'); } catch {}
-        try { socket.ev.removeAllListeners('group-participants.update'); } catch {}
-        try { socket.ev.removeAllListeners('error'); } catch {}
+        try { socket.ev.removeAllListeners('connection.update'); } catch { }
+        try { socket.ev.removeAllListeners('creds.update'); } catch { }
+        try { socket.ev.removeAllListeners('messages.upsert'); } catch { }
+        try { socket.ev.removeAllListeners('messages.update'); } catch { }
+        try { socket.ev.removeAllListeners('call'); } catch { }
+        try { socket.ev.removeAllListeners('group-participants.update'); } catch { }
+        try { socket.ev.removeAllListeners('error'); } catch { }
         if (logout) {
-            try { await socket.logout(); } catch {}
+            try { await socket.logout(); } catch { }
         }
-        try { socket.end(undefined); } catch {}
+        try { socket.end(undefined); } catch { }
     }
     clearSocketProTimers('__main__');
 
@@ -422,7 +445,7 @@ async function createSocket(options = {}) {
 
     activeSocket = sock;
     appState.setSocket(sock);
-    
+
     // Set start time immediately to ignore backlog messages processed before "open" state
     sock.startTime = Math.floor(Date.now() / 1000);
 
@@ -551,7 +574,7 @@ async function createSocket(options = {}) {
         }
         setTimeout(() => {
             if (sock !== activeSocket || !appState.isMainPairMode()) return;
-            requestMainPairCode(sock).catch(() => {});
+            requestMainPairCode(sock).catch(() => { });
         }, 5000);
     }
 
@@ -633,26 +656,26 @@ async function handleMessages(sock, messageBatch, sessionId = '__main__') {
             botEnabled = session.botEnabled !== false;
             disabledModules = session.disabledModules || [];
             owner = session.owner || null;
-            
+
             // Per-bot overrides with global fallbacks
-            sAutoRead = session.autoRead !== null && session.autoRead !== undefined 
-                ? session.autoRead 
+            sAutoRead = session.autoRead !== null && session.autoRead !== undefined
+                ? session.autoRead
                 : appState.getAutoRead();
-            sAutoTyping = session.autoTyping !== null && session.autoTyping !== undefined 
-                ? session.autoTyping 
+            sAutoTyping = session.autoTyping !== null && session.autoTyping !== undefined
+                ? session.autoTyping
                 : appState.getAutoTyping();
-            sAutoReact = session.autoReactStatus !== null && session.autoReactStatus !== undefined 
-                ? session.autoReactStatus 
+            sAutoReact = session.autoReactStatus !== null && session.autoReactStatus !== undefined
+                ? session.autoReactStatus
                 : appState.getAutoReactStatus();
-            sNsfw = session.nsfwEnabled !== null && session.nsfwEnabled !== undefined 
-                ? session.nsfwEnabled 
+            sNsfw = session.nsfwEnabled !== null && session.nsfwEnabled !== undefined
+                ? session.nsfwEnabled
                 : appState.getNsfwEnabled();
             sPrefix = session.prefix || null;
             sName = session.name || null;
-            sAutoReply = session.autoReply !== null && session.autoReply !== undefined 
-                ? session.autoReply 
+            sAutoReply = session.autoReply !== null && session.autoReply !== undefined
+                ? session.autoReply
                 : true; // Default to true if not specified per-bot
-            
+
             sAiAutoReply = session.aiAutoReply !== null && session.aiAutoReply !== undefined ? session.aiAutoReply : null;
             sAiAutoVoice = session.aiAutoVoice !== null && session.aiAutoVoice !== undefined ? session.aiAutoVoice : null;
             sAiAutoPersona = session.aiAutoPersona || null;
@@ -671,7 +694,7 @@ async function handleMessages(sock, messageBatch, sessionId = '__main__') {
     const finalPrefix = sPrefix || getPrefix();
     const finalBotName = sName || getBotName();
     const finalAutoReply = sAutoReply !== null ? sAutoReply : true;
-    
+
     // AI Settings Resolution: Per-bot > Global fallback
     const finalAiAutoReply = sAiAutoReply !== null ? sAiAutoReply : appState.getAiAutoReply();
     const finalAiAutoVoice = sAiAutoVoice !== null ? sAiAutoVoice : appState.getAiAutoVoice();
@@ -684,7 +707,7 @@ async function handleMessages(sock, messageBatch, sessionId = '__main__') {
     const finalMentionReply = sessionId === '__main__'
         ? (mainOverrides.mentionReply || '')
         : (getSessionFeature(sessionId, 'mentionReply', '') || '');
-    
+
     // Auto-view / Auto-react for status@broadcast are now independent of the
     // generic autoStatus flag — either global toggle alone is enough to trigger.
     // Sub-sessions always have autoViewStatus initialized as a boolean by
@@ -701,52 +724,46 @@ async function handleMessages(sock, messageBatch, sessionId = '__main__') {
         const sessionMgr = require('./session-manager');
         const session = sessionMgr.get(sessionId);
         if (session) {
-            sessionMgr.updateSessionMetrics(sessionId, { 
-                processedCount: (session.processedCount || 0) + 1 
+            sessionMgr.updateSessionMetrics(sessionId, {
+                processedCount: (session.processedCount || 0) + 1
             });
         }
     }
 
-    // Globally filter out backlog messages from the batch
-    const startupGrace = 5; // 5 seconds grace period
+    // 1. First, try to capture ANY View-Once media in the raw batch
+    for (const msg of messageBatch.messages) {
+        if (!msg.message || msg.key?.fromMe) continue;
+        await captureViewOnce(sock, msg, { sessionId, owner }).catch((error) => {
+            logger(`[${sessionId}] View Once capture failed: ${error.message}`);
+        });
+    }
+
+    // 2. Then, filter for valid/new messages for command processing
+    const botStartTime = sock.startTime || Math.floor(Date.now() / 1000);
+    const extendedGrace = 120;
+
     const validMessages = messageBatch.messages.filter(msg => {
         if (!msg.message) return false;
-        
-        // Get message timestamp (Baileys usually gives it in seconds)
-        // Check multiple locations for the timestamp
         const rawTime = msg.messageTimestamp || msg.message?.messageTimestamp || msg.message?.extendedTextMessage?.contextInfo?.timestamp || 0;
         const msgTime = Number(rawTime);
-        
-        // If we don't have a start time yet, use a failsafe (but we set it in createSocket)
-        const botStartTime = sock.startTime || Math.floor(Date.now() / 1000);
-
-        // If message is older than bot start time - grace, it's definitely backlog
-        const isBacklog = msgTime < (botStartTime - startupGrace);
-        
-        if (isBacklog) {
-            // Keep logs clean but log normal messages for debugging
-            if (msg.key?.remoteJid !== 'status@broadcast') {
-                logger(`[Backlog] Ignoring old message from ${msg.key.remoteJid} (Diff: ${botStartTime - msgTime}s)`);
-            }
-            return false;
-        }
-
-        return true;
+        return msgTime >= (botStartTime - extendedGrace);
     });
 
     for (const msg of validMessages) {
-        if (!msg.message) continue;
-
         const jid = msg.key.remoteJid;
         const fromMe = msg.key.fromMe;
         const pushName = msg.pushName || 'User';
         const isGroup = jid.endsWith('@g.us');
         const sender = msg.key.participant || jid;
-        if (sessionId === '__main__') cacheMsg(msg);
 
-        await captureViewOnce(sock, msg, { sessionId, owner }).catch((error) => {
-            logger(`[${sessionId}] View Once capture failed: ${error.message}`);
-        });
+        cacheMsg(msg);
+
+        const protocolMsg = msg.message?.protocolMessage;
+        if (protocolMsg && protocolMsg.type === 0) { // REVOKE
+            await handleAntiDelete(sock, sessionId, protocolMsg.key).catch((e) => {
+                logger(`[${sessionId}] Anti-Delete failed: ${e.message}`);
+            });
+        }
 
         if (jid === 'status@broadcast') {
             const { jidNormalizedUser } = require('@whiskeysockets/baileys');
@@ -754,7 +771,7 @@ async function handleMessages(sock, messageBatch, sessionId = '__main__') {
             let selfJid = null;
             try {
                 selfJid = sock?.user?.id ? jidNormalizedUser(sock.user.id) : null;
-            } catch {}
+            } catch { }
 
             const rawParticipant = msg.key?.participant || '';
             const normParticipant = rawParticipant.includes('@')
@@ -896,7 +913,7 @@ async function handleMessages(sock, messageBatch, sessionId = '__main__') {
         logger('Admin restart requested. Reconnecting main bot...');
         await stopBot({ status: 'Restarting' });
         setTimeout(() => {
-            startBot({ forceRestart: true }).catch(() => {});
+            startBot({ forceRestart: true }).catch(() => { });
         }, 2000);
         return;
     }
@@ -907,11 +924,11 @@ async function handleMessages(sock, messageBatch, sessionId = '__main__') {
 
         let sender = msg.key.participant || msg.key.remoteJid;
         const pushName = msg.pushName || null;
-        
+
         // Resolve JID: Check if this is an LID that needs mapping to a phone number
         const userDb = db.getObjectCollection('users');
         let resolvedSender = sender;
-        
+
         // 1. Check if we have a direct mapping for this LID in the DB
         if (sender.endsWith('@lid')) {
             const foundByLid = userDb[sender];
@@ -919,7 +936,7 @@ async function handleMessages(sock, messageBatch, sessionId = '__main__') {
                 resolvedSender = foundByLid.number + '@s.whatsapp.net';
             }
         }
-        
+
         // 2. Fallback: Check if the LID string itself IS the phone number (common for some users)
         if (resolvedSender.endsWith('@lid')) {
             const potentialNum = resolvedSender.split('@')[0];
@@ -933,12 +950,12 @@ async function handleMessages(sock, messageBatch, sessionId = '__main__') {
 
         // Automaticaly update user metadata (Name and Last Seen)
         if (sender && sender !== 'status@broadcast') {
-            const updateData = { 
+            const updateData = {
                 lastSeen: new Date().toISOString(),
                 number: (resolvedSender || sender).split('@')[0]
             };
             if (pushName) updateData.pushName = pushName;
-            
+
             // Save to both identifiers to ensure future mapping works
             db.update('users', sender, updateData);
             if (resolvedSender !== sender) {
@@ -952,11 +969,11 @@ async function handleMessages(sock, messageBatch, sessionId = '__main__') {
             msg.message.videoMessage?.caption || '';
 
         // Check ownership using both the raw sender and the resolved identity
-        const isUserOwner = msg.key.fromMe || 
-                           require('./lib/utils').isOwner(sender, owner) || 
-                           require('./lib/utils').isOwner(resolvedSender, owner) ||
-                           (userDb[sender]?.isOwner) || 
-                           (userDb[resolvedSender]?.isOwner);
+        const isUserOwner = msg.key.fromMe ||
+            require('./lib/utils').isOwner(sender, owner) ||
+            require('./lib/utils').isOwner(resolvedSender, owner) ||
+            (userDb[sender]?.isOwner) ||
+            (userDb[resolvedSender]?.isOwner);
 
         if (!botEnabled) {
             // If bot is disabled, ignore everything EXCEPT owner running system commands (.on, .settings)
@@ -976,11 +993,11 @@ async function handleMessages(sock, messageBatch, sessionId = '__main__') {
         // `readMessages` works for both 1:1 and group chats; `sendReceipt`
         // expected a participant id and silently no-op'd in DMs (where
         // participant is undefined), so chats appeared "stuck" as unread.
-        if (finalAutoRead && !msg.key.fromMe) await sock.readMessages([msg.key]).catch(() => {});
-        if (finalAutoTyping && !msg.key.fromMe) await sock.sendPresenceUpdate('composing', from).catch(() => {});
+        if (finalAutoRead && !msg.key.fromMe) await sock.readMessages([msg.key]).catch(() => { });
+        if (finalAutoTyping && !msg.key.fromMe) await sock.sendPresenceUpdate('composing', from).catch(() => { });
 
         const prefix = finalPrefix;
-        
+
         // Skip own messages unless they start with prefix (commands) or are pure numeric replies (for download selection)
         if (msg.key.fromMe && !text.startsWith(finalPrefix) && !/^\d+$/.test(text.trim())) continue;
 
@@ -1002,7 +1019,7 @@ async function handleMessages(sock, messageBatch, sessionId = '__main__') {
                 || (botNameLower.length > 2 && cleanText.includes(botNameLower))
                 || (botNameFirstWord.length > 2 && new RegExp(`(^|\\W)${botNameFirstWord.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(\\W|$)`).test(cleanText));
             if (mentionsBot && !text.startsWith(finalPrefix)) {
-                await sock.sendMessage(from, { text: finalMentionReply }, { quoted: msg }).catch(() => {});
+                await sock.sendMessage(from, { text: finalMentionReply }, { quoted: msg }).catch(() => { });
                 continue;
             }
         }
@@ -1019,7 +1036,7 @@ async function handleMessages(sock, messageBatch, sessionId = '__main__') {
                         await sock.groupParticipantsUpdate(from, [sender], 'remove');
                         continue;
                     }
-                } catch {}
+                } catch { }
             }
 
             if (groupSettings.antibad && BAD_WORDS.some((word) => text.toLowerCase().includes(word))) {
@@ -1034,11 +1051,11 @@ async function handleMessages(sock, messageBatch, sessionId = '__main__') {
                         });
                         continue;
                     }
-                } catch {}
+                } catch { }
             }
         }
 
-        const isCommand = await handleCommand(sock, msg, from, text, disabledModules, { 
+        const isCommand = await handleCommand(sock, msg, from, text, disabledModules, {
             workMode, owner, nsfwEnabled: finalNsfw, prefix: finalPrefix, botName: finalBotName, sessionId,
             autoReply: finalAutoReply,
             aiAutoReply: finalAiAutoReply,
@@ -1058,14 +1075,12 @@ async function handleMessages(sock, messageBatch, sessionId = '__main__') {
                 const sessionMgr = require('./session-manager');
                 const session = sessionMgr.get(sessionId);
                 if (session) {
-                    sessionMgr.updateSessionMetrics(sessionId, { 
-                        commandsCount: (session.commandsCount || 0) + 1 
+                    sessionMgr.updateSessionMetrics(sessionId, {
+                        commandsCount: (session.commandsCount || 0) + 1
                     });
                 }
             }
         }
-        const botNumber = sock.user?.id?.split(':')[0];
-        if (sender.startsWith(botNumber)) continue;
 
         if (!isCommand && !msg.key.fromMe && !text.startsWith(finalPrefix) && finalAutoReply) {
             const autoReplyRule = findAutoReply(text, { isGroupMessage: from.endsWith('@g.us') });

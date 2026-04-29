@@ -256,6 +256,10 @@
             <h3>Bot Settings</h3>
             <span class="badge blue" id="botAccessBadge">PUBLIC</span>
             <span class="bot-status-pill" id="botStatusPill"><span class="dot"></span><span id="botStatusPillText">--</span></span>
+            <span id="botSettingsAutoSaveStatus" style="font-size:10px;color:var(--brand);margin-left:auto;opacity:0.8;display:flex;align-items:center;gap:4px">
+              <i class="bot-icon" data-icon="check-circle" style="width:10px;height:10px"></i>
+              <span>All changes saved</span>
+            </span>
           </div>
           <p class="muted" id="botSettingsSubtitle">Orchestrating instance</p>
         </div>
@@ -273,7 +277,11 @@
           </div>
           <div class="bot-nav-item" id="botNavItem-ai" onclick="switchBotTab('ai')">
             <i class="bot-icon" data-icon="cpu"></i>
-            <span>AI &amp; Automation</span>
+            <span>AI Engine</span>
+          </div>
+          <div class="bot-nav-item" id="botNavItem-automation" onclick="switchBotTab('automation')">
+            <i class="bot-icon" data-icon="refresh"></i>
+            <span>Automation</span>
           </div>
           <div class="bot-nav-item" id="botNavItem-modules" onclick="switchBotTab('modules')">
             <i class="bot-icon" data-icon="layers"></i>
@@ -287,14 +295,8 @@
             <i class="bot-icon" data-icon="users"></i>
             <span>Groups</span>
           </div>
-          <div class="bot-nav-item" id="botNavItem-limits" onclick="switchBotTab('limits')">
-            <i class="bot-icon" data-icon="gauge"></i>
-            <span>Limits</span>
-          </div>
-          <div class="bot-nav-item" id="botNavItem-logs" onclick="switchBotTab('logs')">
-            <i class="bot-icon" data-icon="terminal"></i>
-            <span>Logs</span>
-          </div>
+
+
           <div class="bot-nav-item" id="botNavItem-actions" onclick="switchBotTab('actions')">
             <i class="bot-icon" data-icon="zap"></i>
             <span>Actions</span>
@@ -308,8 +310,8 @@
               <div class="advanced-section">
                 <div class="advanced-head">
                   <div>
-                    <h4>Identity</h4>
-                    <p>Display name, owner, and command prefix for this bot.</p>
+                    <h4>Identity & Style</h4>
+                    <p>Display name, owner, command prefix, and visual theme.</p>
                   </div>
                 </div>
                 <div class="control-grid">
@@ -343,22 +345,21 @@
                     </select>
                   </label>
                   <label class="control-card field-card">
+                    <div><div class="label"><i class="bot-icon" data-icon="layers"></i>Global Theme</div><div class="desc">Message appearance</div></div>
+                    <select class="select" id="botGenTheme">
+                      <option value="auto">Automatic (Role-based)</option>
+                      <option value="sakura">Sakura Blossom 🌸</option>
+                      <option value="premium_theme">Premium Minimalist 🌑</option>
+                      <option value="owner">Master Control 👑</option>
+                      <option value="premium_owner">Nexus Prime 💎</option>
+                    </select>
+                  </label>
+                  <label class="control-card field-card">
                     <div><div class="label"><i class="bot-icon" data-icon="power"></i>Bot Enabled</div><div class="desc">Allow this session to respond</div></div>
                     <span class="switch"><input type="checkbox" id="botGenEnabled" /><span class="slider"></span></span>
                   </label>
-                  <label class="control-card field-card">
-                    <div><div class="label"><i class="bot-icon" data-icon="eye"></i>Auto Status</div><div class="desc">View status updates</div></div>
-                    <span class="switch"><input type="checkbox" id="botGenAutoStatus" /><span class="slider"></span></span>
-                  </label>
                 </div>
-                <div class="advanced-section-inner field-block">
-                  <div class="label-with-icon"><i class="bot-icon" data-icon="message-circle"></i><span>Mention Reply Text</span></div>
-                  <div class="desc">Auto-response when bot is @-mentioned in groups.</div>
-                  <textarea class="input mt-2" id="botGenMentionReply" placeholder="Hello! I'm online — use the menu to see commands." style="min-height:72px;resize:vertical"></textarea>
-                </div>
-                <div class="bot-form-actions">
-                  <button class="btn btn-primary" onclick="saveBotSettings('general')">Save General</button>
-                </div>
+
               </div>
             </div>
           </section>
@@ -387,18 +388,11 @@
                   <div class="health-card"><div class="k"><i class="bot-icon" data-icon="terminal"></i>Commands</div><div class="v" id="botHealthCommands">0</div></div>
                   <div class="health-card"><div class="k"><i class="bot-icon" data-icon="cpu"></i>Reconnects</div><div class="v" id="botHealthReconnects">0</div></div>
                 </div>
-                <div class="bot-form-actions">
-                  <button class="btn btn-secondary" onclick="runBotModalAction('reconnect')"><i class="bot-icon" data-icon="refresh"></i>Reconnect</button>
-                  <button class="btn btn-danger" onclick="runBotModalAction('disconnect')"><i class="bot-icon" data-icon="x-circle"></i>Disconnect</button>
-                  <button class="btn btn-secondary" onclick="refreshBotHealth()"><i class="bot-icon" data-icon="refresh"></i>Refresh Status</button>
-                  <button class="btn btn-secondary" onclick="runBotModalAction('clearError')"><i class="bot-icon" data-icon="alert"></i>Clear Error</button>
-                  <button class="btn btn-secondary" onclick="switchBotTab('logs')"><i class="bot-icon" data-icon="terminal"></i>View Logs</button>
-                </div>
               </div>
             </div>
           </section>
 
-          <!-- ========== AI & AUTOMATION ========== -->
+          <!-- ========== AI ENGINE ========== -->
           <section class="bot-tab-section" id="botTab-ai" style="display:none">
             <div class="advanced-panel">
               <div class="callout callout-warning" id="aiWarningCard">
@@ -460,32 +454,73 @@
                   <div class="desc">Override the global AI system prompt for this bot.</div>
                   <textarea class="input mt-2" id="botAiSystemInstruction" placeholder="You are a helpful WhatsApp assistant for…" style="min-height:120px;resize:vertical;font-family:'JetBrains Mono',monospace;font-size:12px"></textarea>
                 </div>
+
               </div>
+            </div>
+          </section>
+
+          <!-- ========== AUTOMATION ========== -->
+          <section class="bot-tab-section" id="botTab-automation" style="display:none">
+            <div class="advanced-panel">
               <div class="advanced-section">
                 <div class="advanced-head">
-                  <div><h4>Automation</h4><p>Standard auto-reply and presence behavior.</p></div>
+                  <div class="label-with-icon"><i class="bot-icon" data-icon="refresh"></i><h4>Instance Automation</h4></div>
+                  <p class="mt-1">Manage all automated behaviors and presence settings in one place.</p>
                 </div>
                 <div class="control-grid">
                   <label class="control-card field-card">
-                    <div><div class="label">Normal Auto Reply</div><div class="desc">Use auto-reply rules</div></div>
-                    <span class="switch"><input type="checkbox" id="botAutoReply" /><span class="slider"></span></span>
+                    <div><div class="label"><i class="bot-icon" data-icon="zap"></i>Always Online</div><div class="desc">Keep status as 'online'</div></div>
+                    <span class="switch"><input type="checkbox" id="botGenAlwaysOnline" /><span class="slider"></span></span>
                   </label>
                   <label class="control-card field-card">
-                    <div><div class="label">Auto Typing</div><div class="desc">Show typing indicator</div></div>
+                    <div><div class="label"><i class="bot-icon" data-icon="eye"></i>Auto Status</div><div class="desc">View status updates</div></div>
+                    <span class="switch"><input type="checkbox" id="botGenAutoStatus" /><span class="slider"></span></span>
+                  </label>
+                  <label class="control-card field-card">
+                    <div><div class="label"><i class="bot-icon" data-icon="activity"></i>Auto Bio</div><div class="desc">Update bio with uptime</div></div>
+                    <span class="switch"><input type="checkbox" id="botGenAutoBio" /><span class="slider"></span></span>
+                  </label>
+                  <label class="control-card field-card">
+                    <div><div class="label"><i class="bot-icon" data-icon="type"></i>Auto Typing</div><div class="desc">Show typing indicator</div></div>
                     <span class="switch"><input type="checkbox" id="botAutoTyping" /><span class="slider"></span></span>
                   </label>
                   <label class="control-card field-card">
-                    <div><div class="label">Auto Read</div><div class="desc">Mark messages as read</div></div>
+                    <div><div class="label"><i class="bot-icon" data-icon="mic"></i>Always Recording</div><div class="desc">Show 'recording...' status</div></div>
+                    <span class="switch"><input type="checkbox" id="botAutoRecording" /><span class="slider"></span></span>
+                  </label>
+                  <label class="control-card field-card">
+                    <div><div class="label"><i class="bot-icon" data-icon="message-circle"></i>Normal Auto Reply</div><div class="desc">Use auto-reply rules</div></div>
+                    <span class="switch"><input type="checkbox" id="botAutoReply" /><span class="slider"></span></span>
+                  </label>
+                  <label class="control-card field-card">
+                    <div><div class="label"><i class="bot-icon" data-icon="check-circle"></i>Auto Read</div><div class="desc">Mark messages as read</div></div>
                     <span class="switch"><input type="checkbox" id="botAutoRead" /><span class="slider"></span></span>
                   </label>
                   <label class="control-card field-card">
-                    <div><div class="label">Auto React Status</div><div class="desc">React to viewed status</div></div>
+                    <div><div class="label"><i class="bot-icon" data-icon="smile"></i>Auto React Status</div><div class="desc">React to viewed status</div></div>
                     <span class="switch"><input type="checkbox" id="botAutoReact" /><span class="slider"></span></span>
                   </label>
+                  <label class="control-card field-card">
+                    <div><div class="label"><i class="bot-icon" data-icon="phone-off"></i>Anti-Call</div><div class="desc">Auto-reject incoming calls</div></div>
+                    <span class="switch"><input type="checkbox" id="botAntiCall" /><span class="slider"></span></span>
+                  </label>
+                  <label class="control-card field-card">
+                    <div><div class="label"><i class="bot-icon" data-icon="user-minus"></i>Anti-Group Join</div><div class="desc">Block group invites</div></div>
+                    <span class="switch"><input type="checkbox" id="botAntiGroupJoin" /><span class="slider"></span></span>
+                  </label>
+                  <label class="control-card field-card">
+                    <div><div class="label"><i class="bot-icon" data-icon="alert-triangle"></i>NSFW Filter</div><div class="desc">Block adult content</div></div>
+                    <span class="switch"><input type="checkbox" id="botNsfwFilter" /><span class="slider"></span></span>
+                  </label>
                 </div>
-                <div class="bot-form-actions">
-                  <button class="btn btn-primary" onclick="saveBotSettings('ai')">Save AI &amp; Automation</button>
+
+                <div class="advanced-section-inner field-block mt-3">
+                  <div class="label-with-icon"><i class="bot-icon" data-icon="at-sign"></i><span>Mention Reply Text</span></div>
+                  <div class="desc">Auto-response when bot is @-mentioned in groups.</div>
+                  <textarea class="input mt-2" id="botGenMentionReply" placeholder="Hello! I'm online — use the menu to see commands." style="min-height:72px;resize:vertical"></textarea>
                 </div>
+
+
               </div>
             </div>
           </section>
@@ -525,55 +560,77 @@
               </div>
               <div class="advanced-section pro-section">
                 <div class="advanced-head">
-                  <div><h4>Anti-Delete Engine</h4><p>Capture and re-route messages others delete.</p></div>
+                  <div class="label-with-icon"><i class="bot-icon" data-icon="shield"></i><h4>Anti-Delete & Privacy Engine</h4></div>
                   <span class="badge blue">PRO</span>
                 </div>
                 <div class="control-grid">
                   <label class="control-card field-card">
-                    <div><div class="label">Anti-Delete Enabled</div><div class="desc">Master switch</div></div>
+                    <div><div class="label"><i class="bot-icon" data-icon="trash"></i>Anti-Delete</div><div class="desc">Recover deleted messages</div></div>
                     <span class="switch"><input type="checkbox" id="botAntiDeleteEnabled" /><span class="slider"></span></span>
                   </label>
                   <label class="control-card field-card">
-                    <div><div class="label">Anti View-Once</div><div class="desc">Re-send view-once media</div></div>
+                    <div><div class="label"><i class="bot-icon" data-icon="eye"></i>Anti View-Once</div><div class="desc">Save view-once media</div></div>
                     <span class="switch"><input type="checkbox" id="botAntiViewOnce" /><span class="slider"></span></span>
                   </label>
                   <label class="control-card field-card">
-                    <div><div class="label">Auto Cleanup</div><div class="desc">Purge captured files daily</div></div>
+                    <div><div class="label"><i class="bot-icon" data-icon="refresh"></i>Auto Cleanup</div><div class="desc">Purge captured files</div></div>
                     <span class="switch"><input type="checkbox" id="botPrivacyAutoCleanup" /><span class="slider"></span></span>
                   </label>
                   <label class="control-card field-card">
-                    <div><div class="label">Max Capture Storage (MB)</div><div class="desc">Soft limit, oldest evicted</div></div>
-                    <input type="number" class="input" id="botPrivacyMaxStorage" min="50" max="10000" placeholder="500" />
+                    <div><div class="label"><i class="bot-icon" data-icon="monitor"></i>Storage Limit</div><div class="desc">Max capture size (MB)</div></div>
+                    <input type="number" class="input" id="botPrivacyMaxStorage" min="50" max="5000" placeholder="500" />
+                  </label>
+                  <label class="control-card field-card">
+                    <div><div class="label"><i class="bot-icon" data-icon="user-minus"></i>Ignore Groups</div><div class="desc">Disable in group chats</div></div>
+                    <span class="switch"><input type="checkbox" id="botPrivacyIgnoreGroups" /><span class="slider"></span></span>
                   </label>
                 </div>
-                <div class="advanced-section-inner">
-                  <div class="label-with-icon"><span>Recovery Routing</span></div>
-                  <div class="desc">Where recovered messages are sent.</div>
+
+                <div class="advanced-section-inner field-block mt-3">
+                  <div class="label-with-icon"><i class="bot-icon" data-icon="users"></i><span>Recovery Routing</span></div>
+                  <div class="desc">Select where recovered content should be restored.</div>
+                  <input type="hidden" id="botPrivacyAdTarget" value="chat" />
                   <div class="route-grid mt-2">
                     <div class="control-card route-card" id="botPrivacyTargetChat" onclick="setAdTarget('chat')">
-                      <div class="ad-radio-circle"></div>
+                      <div class="route-icon"><i class="bot-icon" data-icon="message-circle"></i></div>
                       <div><div class="label">Original Chat</div><div class="desc">Restore in place</div></div>
                     </div>
                     <div class="control-card route-card" id="botPrivacyTargetOwner" onclick="setAdTarget('owner')">
-                      <div class="ad-radio-circle"></div>
+                      <div class="route-icon"><i class="bot-icon" data-icon="crown"></i></div>
                       <div><div class="label">Owner Inbox</div><div class="desc">Private log to owner</div></div>
                     </div>
                   </div>
                 </div>
-                <div class="advanced-section-inner">
-                  <div class="label-with-icon"><span>Capture Matrix</span></div>
-                  <div class="desc">Choose which content types to recover.</div>
+
+                <div class="advanced-section-inner field-block mt-3">
+                  <div class="label-with-icon"><i class="bot-icon" data-icon="layers"></i><span>Capture Matrix</span></div>
+                  <div class="desc">Define which content types the engine should track.</div>
                   <div class="filter-grid mt-2">
-                    <label class="check-pill"><span>Text</span><input type="checkbox" id="botAdFilterText" /></label>
-                    <label class="check-pill"><span>Images</span><input type="checkbox" id="botAdFilterImage" /></label>
-                    <label class="check-pill"><span>Videos</span><input type="checkbox" id="botAdFilterVideo" /></label>
-                    <label class="check-pill"><span>Audio</span><input type="checkbox" id="botAdFilterAudio" /></label>
-                    <label class="check-pill"><span>Stickers</span><input type="checkbox" id="botAdFilterSticker" /></label>
-                    <label class="check-pill"><span>Documents</span><input type="checkbox" id="botAdFilterDoc" /></label>
+                    <label class="check-pill">
+                      <input type="checkbox" id="botAdFilterText" />
+                      <span>Text</span>
+                    </label>
+                    <label class="check-pill">
+                      <input type="checkbox" id="botAdFilterImage" />
+                      <span>Images</span>
+                    </label>
+                    <label class="check-pill">
+                      <input type="checkbox" id="botAdFilterVideo" />
+                      <span>Videos</span>
+                    </label>
+                    <label class="check-pill">
+                      <input type="checkbox" id="botAdFilterAudio" />
+                      <span>Audio</span>
+                    </label>
+                    <label class="check-pill">
+                      <input type="checkbox" id="botAdFilterSticker" />
+                      <span>Stickers</span>
+                    </label>
+                    <label class="check-pill">
+                      <input type="checkbox" id="botAdFilterDoc" />
+                      <span>Docs</span>
+                    </label>
                   </div>
-                </div>
-                <div class="bot-form-actions">
-                  <button class="btn btn-primary" onclick="saveBotSettings('privacy')">Save Privacy</button>
                 </div>
               </div>
             </div>
@@ -585,7 +642,9 @@
               <div class="advanced-section">
                 <div class="advanced-head">
                   <div><h4>Groups Handled By This Bot</h4><p>Groups where this session is the routing target.</p></div>
-                  <button class="btn btn-secondary btn-sm" onclick="renderBotGroups()"><i class="bot-icon" data-icon="refresh"></i>Refresh</button>
+                  <div class="stack gap-2 row">
+                    <button class="btn btn-secondary btn-sm" onclick="renderBotGroups()"><i class="bot-icon" data-icon="refresh"></i>Refresh</button>
+                  </div>
                 </div>
                 <div id="botGroupsList" class="bot-groups-list">
                   <div class="empty-state">Loading…</div>
@@ -594,75 +653,9 @@
             </div>
           </section>
 
-          <!-- ========== LIMITS ========== -->
-          <section class="bot-tab-section" id="botTab-limits" style="display:none">
-            <div class="advanced-panel">
-              <div class="advanced-section">
-                <div class="advanced-head">
-                  <div><h4>Rate Limits &amp; Throttles</h4><p>Per-session caps to keep the bot stable.</p></div>
-                </div>
-                <div class="control-grid">
-                  <label class="control-card field-card">
-                    <div><div class="label">Max Commands / Minute</div><div class="desc">0 = unlimited</div></div>
-                    <input type="number" class="input" id="botLimitsCmdRate" min="0" max="1000" placeholder="60" />
-                  </label>
-                  <label class="control-card field-card">
-                    <div><div class="label">AI Replies / Minute</div><div class="desc">0 = unlimited</div></div>
-                    <input type="number" class="input" id="botLimitsAiRate" min="0" max="1000" placeholder="20" />
-                  </label>
-                  <label class="control-card field-card">
-                    <div><div class="label">Download Cooldown (sec)</div><div class="desc">Per user</div></div>
-                    <input type="number" class="input" id="botLimitsDownloadCooldown" min="0" max="600" placeholder="5" />
-                  </label>
-                  <label class="control-card field-card">
-                    <div><div class="label">Max Active Downloads</div><div class="desc">Concurrent jobs</div></div>
-                    <input type="number" class="input" id="botLimitsMaxDownloads" min="1" max="20" placeholder="3" />
-                  </label>
-                  <label class="control-card field-card">
-                    <div><div class="label">Max File Size (MB)</div><div class="desc">Reject larger uploads</div></div>
-                    <input type="number" class="input" id="botLimitsMaxFileSize" min="1" max="2048" placeholder="100" />
-                  </label>
-                  <label class="control-card field-card">
-                    <div><div class="label">Broadcast Delay (ms)</div><div class="desc">Between recipients</div></div>
-                    <input type="number" class="input" id="botLimitsBroadcastDelay" min="0" max="60000" placeholder="1500" />
-                  </label>
-                  <label class="control-card field-card">
-                    <div><div class="label">Scheduler Delay (ms)</div><div class="desc">Between job sends</div></div>
-                    <input type="number" class="input" id="botLimitsSchedulerDelay" min="0" max="60000" placeholder="800" />
-                  </label>
-                </div>
-                <div class="bot-form-actions">
-                  <button class="btn btn-primary" onclick="saveBotSettings('limits')">Save Limits</button>
-                </div>
-              </div>
-            </div>
-          </section>
 
-          <!-- ========== LOGS ========== -->
-          <section class="bot-tab-section" id="botTab-logs" style="display:none">
-            <div class="advanced-panel">
-              <div class="advanced-section">
-                <div class="advanced-head">
-                  <div><h4>Session Logs</h4><p>Most recent entries scoped to this bot.</p></div>
-                  <div class="bot-form-actions" style="margin:0">
-                    <button class="btn btn-secondary btn-sm" onclick="renderBotLogs()"><i class="bot-icon" data-icon="refresh"></i>Refresh</button>
-                    <button class="btn btn-secondary btn-sm" onclick="copyBotLogs()"><i class="bot-icon" data-icon="copy"></i>Copy</button>
-                    <button class="btn btn-danger btn-sm" onclick="clearBotLogs()"><i class="bot-icon" data-icon="trash"></i>Clear</button>
-                  </div>
-                </div>
-                <div class="filter-grid mt-2">
-                  <label class="check-pill"><span>Connection</span><input type="checkbox" data-log-filter="connection" checked /></label>
-                  <label class="check-pill"><span>Command</span><input type="checkbox" data-log-filter="command" checked /></label>
-                  <label class="check-pill"><span>AI</span><input type="checkbox" data-log-filter="ai" checked /></label>
-                  <label class="check-pill"><span>Download</span><input type="checkbox" data-log-filter="download" checked /></label>
-                  <label class="check-pill"><span>Error</span><input type="checkbox" data-log-filter="error" checked /></label>
-                </div>
-                <div id="botLogsList" class="bot-logs-list mt-3">
-                  <div class="empty-state">Loading…</div>
-                </div>
-              </div>
-            </div>
-          </section>
+
+
 
           <!-- ========== ACTIONS ========== -->
           <section class="bot-tab-section" id="botTab-actions" style="display:none">

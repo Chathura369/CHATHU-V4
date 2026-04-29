@@ -790,19 +790,20 @@ app.post('/bot-api/sessions/:id/settings', authMiddleware, async (req, res) => {
     
     if (id === '__main__') {
         try {
-            let settingsChanged = false;
             if (workMode !== undefined) {
                 const normalizedMode = String(workMode).toLowerCase();
                 if (['public', 'private', 'self', 'group'].includes(normalizedMode)) {
                     appState.setWorkMode(normalizedMode);
-                    settingsChanged = true;
+                    db.setSetting('work_mode', normalizedMode);
                 }
             }
             if (autoStatus !== undefined) {
                 appState.setAutoStatus(autoStatus);
+                db.setSetting('auto_status', !!autoStatus);
             }
             if (botEnabled !== undefined) {
                 appState.setBotEnabled(botEnabled);
+                db.setSetting('bot_enabled', !!botEnabled);
             }
             if (disabledModules !== undefined) {
                 const mods = Array.isArray(disabledModules) ? disabledModules.map(m => String(m).toLowerCase()).filter(Boolean) : [];
@@ -812,30 +813,102 @@ app.post('/bot-api/sessions/:id/settings', authMiddleware, async (req, res) => {
                 const normOwner = normalizeOwner(owner);
                 appState.setOwner(normOwner);
             }
+
             const overrides = db.getSetting('main_bot_settings') || {};
             
-            if (autoRead !== undefined) overrides.autoRead = autoRead;
-            if (autoTyping !== undefined) overrides.autoTyping = autoTyping;
-            if (autoReactStatus !== undefined) overrides.autoReactStatus = autoReactStatus;
-            if (nsfwEnabled !== undefined) overrides.nsfwEnabled = nsfwEnabled;
-            if (req.body.autoReply !== undefined) overrides.autoReply = req.body.autoReply;
-            if (req.body.name !== undefined) overrides.name = String(req.body.name).trim();
-            if (req.body.prefix !== undefined) overrides.prefix = String(req.body.prefix).trim().slice(0, 3);
-            if (req.body.aiAutoReply !== undefined) overrides.aiAutoReply = !!req.body.aiAutoReply;
-            if (req.body.aiAutoVoice !== undefined) overrides.aiAutoVoice = !!req.body.aiAutoVoice;
-            if (req.body.aiAutoPersona !== undefined) overrides.aiAutoPersona = String(req.body.aiAutoPersona);
-            if (req.body.aiAutoLang !== undefined) overrides.aiAutoLang = String(req.body.aiAutoLang);
-            if (req.body.aiGroupMode !== undefined) overrides.aiGroupMode = String(req.body.aiGroupMode);
-            if (req.body.aiSystemInstruction !== undefined) overrides.aiSystemInstruction = String(req.body.aiSystemInstruction);
-            if (req.body.aiMaxWords !== undefined) overrides.aiMaxWords = parseInt(req.body.aiMaxWords) || 30;
+            // Keep overrides in sync with appState
+            if (workMode !== undefined) overrides.workMode = appState.getWorkMode();
+            if (autoStatus !== undefined) overrides.autoStatus = appState.getAutoStatus();
+            if (botEnabled !== undefined) overrides.botEnabled = appState.getBotEnabled();
+            if (disabledModules !== undefined) overrides.disabledModules = appState.getDisabledModules();
+            if (owner !== undefined) overrides.owner = appState.getOwner();
+
+            if (autoRead !== undefined) {
+                overrides.autoRead = autoRead;
+                db.setSetting('autoRead', !!autoRead);
+            }
+            if (autoTyping !== undefined) {
+                overrides.autoTyping = autoTyping;
+                db.setSetting('autoTyping', !!autoTyping);
+            }
+            if (autoReactStatus !== undefined) {
+                overrides.autoReactStatus = autoReactStatus;
+                db.setSetting('auto_react_status', !!autoReactStatus);
+            }
+            if (nsfwEnabled !== undefined) {
+                overrides.nsfwEnabled = nsfwEnabled;
+                db.setSetting('nsfwEnabled', !!nsfwEnabled);
+            }
+            if (req.body.autoReply !== undefined) {
+                overrides.autoReply = req.body.autoReply;
+                appState.setAutoReply(!!req.body.autoReply);
+            }
+            if (req.body.name !== undefined) {
+                const cleanName = String(req.body.name).trim();
+                overrides.name = cleanName;
+                db.setSetting('botName', cleanName);
+            }
+            if (req.body.prefix !== undefined) {
+                const cleanPrefix = String(req.body.prefix).trim().slice(0, 3) || '.';
+                overrides.prefix = cleanPrefix;
+                db.setSetting('prefix', cleanPrefix);
+            }
+            if (req.body.aiAutoReply !== undefined) {
+                overrides.aiAutoReply = !!req.body.aiAutoReply;
+                appState.setAiAutoReply(!!req.body.aiAutoReply);
+            }
+            if (req.body.aiAutoVoice !== undefined) {
+                overrides.aiAutoVoice = !!req.body.aiAutoVoice;
+                appState.setAiAutoVoice(!!req.body.aiAutoVoice);
+            }
+            if (req.body.aiAutoPersona !== undefined) {
+                overrides.aiAutoPersona = String(req.body.aiAutoPersona);
+                appState.setAiAutoPersona(overrides.aiAutoPersona);
+            }
+            if (req.body.aiAutoLang !== undefined) {
+                overrides.aiAutoLang = String(req.body.aiAutoLang);
+                appState.setAiAutoLang(overrides.aiAutoLang);
+            }
+            if (req.body.aiGroupMode !== undefined) {
+                overrides.aiGroupMode = String(req.body.aiGroupMode);
+                appState.setAiGroupMode(overrides.aiGroupMode);
+            }
+            if (req.body.aiSystemInstruction !== undefined) {
+                overrides.aiSystemInstruction = String(req.body.aiSystemInstruction);
+                appState.setAiSystemInstruction(overrides.aiSystemInstruction);
+            }
+            if (req.body.aiMaxWords !== undefined) {
+                overrides.aiMaxWords = parseInt(req.body.aiMaxWords) || 30;
+                appState.setAiMaxWords(overrides.aiMaxWords);
+            }
             if (req.body.mentionReply !== undefined) overrides.mentionReply = String(req.body.mentionReply);
             if (req.body.alwaysOnline !== undefined) overrides.alwaysOnline = !!req.body.alwaysOnline;
             if (req.body.antiCall !== undefined) overrides.antiCall = !!req.body.antiCall;
-            if (req.body.antiDelete !== undefined) overrides.antiDelete = req.body.antiDelete;
+            if (req.body.antiDelete !== undefined) {
+                const existingAd = overrides.antiDelete || {};
+                if (typeof req.body.antiDelete === 'object') {
+                    overrides.antiDelete = {
+                        ...existingAd,
+                        ...req.body.antiDelete,
+                        filters: {
+                            ...(existingAd.filters || {}),
+                            ...(req.body.antiDelete.filters || {})
+                        }
+                    };
+                } else {
+                    overrides.antiDelete = !!req.body.antiDelete;
+                }
+            }
             if (req.body.autoBio !== undefined) overrides.autoBio = !!req.body.autoBio;
             if (req.body.alwaysRecording !== undefined) overrides.alwaysRecording = !!req.body.alwaysRecording;
-            if (req.body.autoViewStatus !== undefined) overrides.autoViewStatus = !!req.body.autoViewStatus;
-            if (req.body.antiViewOnce !== undefined) overrides.antiViewOnce = !!req.body.antiViewOnce;
+            if (req.body.autoViewStatus !== undefined) {
+                overrides.autoViewStatus = !!req.body.autoViewStatus;
+                db.setSetting('auto_view_status', overrides.autoViewStatus);
+            }
+            if (req.body.antiViewOnce !== undefined) {
+                overrides.antiViewOnce = !!req.body.antiViewOnce;
+                appState.setAntiViewOnceEnabled(overrides.antiViewOnce);
+            }
             if (req.body.antiGroupJoin !== undefined) overrides.antiGroupJoin = !!req.body.antiGroupJoin;
             if (req.body.privacyAutoCleanup !== undefined) overrides.privacyAutoCleanup = !!req.body.privacyAutoCleanup;
             if (req.body.privacyMaxStorageMb !== undefined) overrides.privacyMaxStorageMb = parseInt(req.body.privacyMaxStorageMb) || 500;
@@ -858,7 +931,8 @@ app.post('/bot-api/sessions/:id/settings', authMiddleware, async (req, res) => {
             if (sock && (
                 req.body.alwaysOnline !== undefined ||
                 req.body.alwaysRecording !== undefined ||
-                req.body.autoBio !== undefined
+                req.body.autoBio !== undefined ||
+                req.body.name !== undefined
             )) {
                 const { refreshRuntimeFeatures } = require('./bot');
                 refreshRuntimeFeatures('__main__');
