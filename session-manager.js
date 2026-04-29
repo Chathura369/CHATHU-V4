@@ -111,6 +111,12 @@ function sessionSnapshot(id, s) {
         aiSystemInstruction: s.aiSystemInstruction || '',
         aiMaxWords: s.aiMaxWords || null,
         mentionReply: s.mentionReply || '',
+        privacyAutoCleanup: !!s.privacyAutoCleanup,
+        privacyMaxStorageMb: s.privacyMaxStorageMb || 500,
+        limits: s.limits || {},
+        lastError: s.lastError || null,
+        reconnectAttempts: s.reconnectAttempts || 0,
+        connectedAt: s.connectedAt || null,
     };
 }
 
@@ -840,6 +846,19 @@ async function updateSessionSettings(id, settings) {
     if (settings.aiSystemInstruction !== undefined) entry.aiSystemInstruction = String(settings.aiSystemInstruction);
     if (settings.aiMaxWords !== undefined) entry.aiMaxWords = parseInt(settings.aiMaxWords) || 30;
     if (settings.mentionReply !== undefined) entry.mentionReply = String(settings.mentionReply);
+    if (settings.privacyAutoCleanup !== undefined) entry.privacyAutoCleanup = !!settings.privacyAutoCleanup;
+    if (settings.privacyMaxStorageMb !== undefined) entry.privacyMaxStorageMb = parseInt(settings.privacyMaxStorageMb) || 500;
+    if (settings.limits !== undefined && typeof settings.limits === 'object' && settings.limits) {
+        entry.limits = {
+            cmdPerMin: parseInt(settings.limits.cmdPerMin) || 0,
+            aiPerMin: parseInt(settings.limits.aiPerMin) || 0,
+            downloadCooldownSec: parseInt(settings.limits.downloadCooldownSec) || 0,
+            maxConcurrentDownloads: parseInt(settings.limits.maxConcurrentDownloads) || 3,
+            maxFileSizeMb: parseInt(settings.limits.maxFileSizeMb) || 100,
+            broadcastDelayMs: parseInt(settings.limits.broadcastDelayMs) || 0,
+            schedulerDelayMs: parseInt(settings.limits.schedulerDelayMs) || 0,
+        };
+    }
     if (settings.alwaysOnline !== undefined || settings.alwaysRecording !== undefined || settings.autoBio !== undefined) {
         applyProFeatureLoops(id, entry);
     }
@@ -900,6 +919,33 @@ async function updateSessionMetrics(id, patch = {}) {
     emitSessionUpdate(id);
 }
 
+async function runRuntimeOp(id, op) {
+    const entry = registry.get(id);
+    if (!entry) return { error: 'Session not found' };
+    if (op === 'clearError') {
+        entry.lastError = null;
+    } else if (op === 'clearQrPause') {
+        entry.qrPaused = false;
+        entry.qrAttempts = 0;
+    } else if (op === 'clearPairCode') {
+        entry.pairCode = null;
+        entry.pairCodeExpiresAt = null;
+    } else if (op === 'clearCache') {
+        messageStores.delete(id);
+        entry.lastError = null;
+    } else if (op === 'syncGroups') {
+        if (entry.sock && typeof entry.sock.groupFetchAllParticipating === 'function') {
+            try { await entry.sock.groupFetchAllParticipating(); } catch { /* best-effort */ }
+        }
+    } else {
+        return { error: 'Unknown op' };
+    }
+    saveMetadata(id, entry);
+    const session = sessionSnapshot(id, entry);
+    emit('session:update', session);
+    return { ok: true, session };
+}
+
 function refreshRuntimeFeatures(id = null) {
     if (id) {
         const entry = registry.get(id);
@@ -919,6 +965,7 @@ module.exports = {
     requestPairCode,
     reconnectSession,
     refreshRuntimeFeatures,
+    runRuntimeOp,
     updateSessionSettings,
     updateSessionMetrics,
     getAll,
