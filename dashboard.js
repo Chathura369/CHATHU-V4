@@ -637,15 +637,19 @@ app.get('/bot-api/stats', authMiddleware, (req, res) => {
     } catch(e) {}
 
     function fmtBytes(b) {
-        if (b < 1024) return b + ' B';
-        if (b < 1024 * 1024) return (b / 1024).toFixed(1) + ' KB';
-        if (b < 1024 * 1024 * 1024) return (b / 1024 / 1024).toFixed(1) + ' MB';
-        return (b / 1024 / 1024 / 1024).toFixed(2) + ' GB';
+        const v = Number(b);
+        if (!Number.isFinite(v) || v <= 0) return '0 B';
+        if (v < 1024) return Math.round(v) + ' B';
+        if (v < 1024 * 1024) return (v / 1024).toFixed(1) + ' KB';
+        if (v < 1024 * 1024 * 1024) return (v / 1024 / 1024).toFixed(1) + ' MB';
+        return (v / 1024 / 1024 / 1024).toFixed(2) + ' GB';
     }
     function fmtSpeed(bps) {
-        if (bps < 1024) return bps + ' B/s';
-        if (bps < 1024 * 1024) return (bps / 1024).toFixed(1) + ' KB/s';
-        return (bps / 1024 / 1024).toFixed(2) + ' MB/s';
+        const v = Number(bps);
+        if (!Number.isFinite(v) || v <= 0) return '0 B/s';
+        if (v < 1024) return Math.round(v) + ' B/s';
+        if (v < 1024 * 1024) return (v / 1024).toFixed(1) + ' KB/s';
+        return (v / 1024 / 1024).toFixed(2) + ' MB/s';
     }
 
     let sessionCount = 1; // main bot
