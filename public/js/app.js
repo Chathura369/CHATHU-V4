@@ -1033,6 +1033,37 @@
       return (State.data.sessions || []).find(x => normalizeSessionId(x.id) === target);
     }
 
+    function upsertSession(session) {
+      if (!session?.id) return null;
+      const index = State.data.sessions.findIndex((s) => s.id === session.id);
+      if (index >= 0) State.data.sessions[index] = { ...State.data.sessions[index], ...session };
+      else State.data.sessions.push(session);
+      State.data.sessions.sort((a, b) => {
+        if (normalizeSessionId(a.id) === '__main__') return -1;
+        if (normalizeSessionId(b.id) === '__main__') return 1;
+        return String(a.name || a.id || '').localeCompare(String(b.name || b.id || ''));
+      });
+      return State.data.sessions.find((s) => s.id === session.id);
+    }
+
+    function removeSessionFromState(id) {
+      const targetId = normalizeSessionId(id);
+      State.data.sessions = (State.data.sessions || []).filter((session) => normalizeSessionId(session.id) !== targetId);
+    }
+
+    function upsertSchedulerItem(item) {
+      if (!item?.id) return null;
+      const index = State.data.scheduler.findIndex((entry) => entry.id === item.id);
+      if (index >= 0) State.data.scheduler[index] = { ...State.data.scheduler[index], ...item };
+      else State.data.scheduler.push(item);
+      State.data.scheduler.sort((a, b) => new Date(a.scheduledAt) - new Date(b.scheduledAt));
+      return State.data.scheduler.find((entry) => entry.id === item.id);
+    }
+
+    function removeSchedulerItemFromState(id) {
+      State.data.scheduler = (State.data.scheduler || []).filter((entry) => entry.id !== id);
+    }
+
     function getManagedUserKey(user) {
       if (!user) return '';
       return user.realJid || user.jid || '';
