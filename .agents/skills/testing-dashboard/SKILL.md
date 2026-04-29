@@ -1,144 +1,112 @@
-# Testing the CHATHUMD-V3 dashboard
+# Testing the CHATHU-V4 Dashboard
 
-This skill covers end-to-end testing of the Express + Socket.IO dashboard that
-fronts the WhatsApp bot. It is written for the post-PR-#3 codebase where the
-app supports `DATA_DIR`, auto-provisioned JWT, and free-host healthchecks.
+## Quick Start
 
-## When to use this skill
+```bash
+# Kill any existing instance
+fuser -k 5301/tcp 2>/dev/null; sleep 2
 
-- Verifying any change in `dashboard.js`, `config.js`, `lib/db.js`,
-  `session-manager.js`, or anything under `public/`.
-- Free-host deploy readiness PRs (Railway / Render / Fly / Heroku / Docker).
-- UI regressions in the redesigned Fleet Orchestration page (`public/pages/users.html`).
+# Boot with clean data dir outside repo
+rm -rf /tmp/chathu-test
+mkdir -p /tmp/chathu-test
+cd /home/ubuntu/CHATHU-V4
+env -i PATH="$PATH" HOME="$HOME" DATA_DIR=/tmp/chathu-test PORT=5301 ADMIN_PASS= JWT_SECRET= nohup node index.js > /tmp/chathu-bot.log 2>&1 &
+sleep 4
+curl -s -o /dev/null -w "%{http_code}" http://localhost:5301/login  # expect 200
+```
+
+## Default Credentials
+
+- **Username**: `admin`
+- **Password**: `chathura123` (works when `ADMIN_PASS` env var is unset)
+- Login endpoint: `POST /bot-api/auth/login` with JSON `{"username":"admin","password":"chathura123"}`
+- Returns JWT token in `{"token": "..."}`
+
+## Auth Pattern
+
+- All `/bot-api/*` endpoints require `Authorization: Bearer <token>` header
+- The frontend JS uses `api(path, opts)` function (defined in `public/js/app.js`) which auto-attaches the token from `State.token` (stored in `localStorage` as `chmd_token`)
+- For `<img>` and `<video>` src attributes that can't send headers, viewonce media endpoints also accept `?token=<jwt>` query param (scoped only to `/bot-api/viewonce/:name` and `/bot-api/viewonce/:name/download`)
+
+## Frontend Conventions
+
+- **API calls**: Use `api()` function, NOT `fetch()` or `apiFetch()`. `api()` is defined in `public/js/app.js:92`
+- **Confirm dialogs**: Use `confirmDialog(message, options)` — returns a Promise. NOT `showConfirm()`
+- **Toast notifications**: Use `toast(message, type)` — NOT `showToast()`
+- **HTML escaping**: Use `escapeHtml(s)` from app.js — do not redefine locally
+- **Element lookup**: Use `byId(id)` shorthand
+- **Page meta tag**: Each page HTML has `<meta name="page" content="page_name" />` for routing
+- **Page IDs**: Must be added to `PAGE_IDS` array in `dashboard.js` (~line 525)
+- **Sidebar nav**: Must be added to ALL page HTML files (admin.html + every file in public/pages/)
+
+## Seeding Test Data
+
+For features that need test files (e.g., View Once Gallery):
+
+```bash
+# Create test image
+python3 -c "
+from PIL import Image, ImageDraw
+img = Image.new('RGB', (640, 480), color='blue')
+d = ImageDraw.Draw(img)
+d.text((200, 220), 'Test Image', fill='white')
+img.save('/tmp/chathu-test/viewonce/1777470000000_TestUser.jpg')
+"
+
+# Create test video
+ffmpeg -y -f lavfi -i 'color=c=red:s=640x480:d=3' \
+  -vf 'drawtext=text=Test Video:fontsize=36:fontcolor=white:x=(w-text_w)/2:y=(h-text_h)/2' \
+  -c:v libx264 -pix_fmt yuv420p \
+  /tmp/chathu-test/viewonce/1777470001000_VideoSender.mp4
+
+# Seed metadata log
+cat > /tmp/chathu-test/viewonce-log.json << 'EOF'
+[
+  {"filename":"1777470000000_TestUser.jpg","sender":"TestUser","senderJid":"94771234567@s.whatsapp.net","chatJid":"94771234567@s.whatsapp.net","sessionId":"__main__","mediaType":"image","mimetype":"image/jpeg","size":5954,"timestamp":1777470000000},
+  {"filename":"1777470001000_VideoSender.mp4","sender":"VideoSender","senderJid":"94779876543@s.whatsapp.net","chatJid":"120363999999999999@g.us","sessionId":"bot2","mediaType":"video","mimetype":"video/mp4","size":8744,"timestamp":1777470001000}
+]
+EOF
+```
+
+## Key Directories
+
+- `DATA_DIR`: Base data directory (default: project root, use `/tmp/chathu-test` for testing)
+- View-once files: `DATA_DIR/viewonce/` (NOT `DATA_DIR/public/viewonce/`)
+- View-once metadata: `DATA_DIR/viewonce-log.json`
+- Database: `DATA_DIR/db.json`
+- Sessions: `DATA_DIR/sessions/`
+
+## Common Pitfalls
+
+1. **Port already in use**: The app won't start if port 5301 is occupied. Always kill existing processes first with `fuser -k 5301/tcp`
+2. **Old server running**: If you update code, you must restart the server — it doesn't hot-reload
+3. **Inline scripts in page HTML**: Scripts in page HTML files run after `app.js` loads (it's included via `<script src="/js/app.js"></script>` before inline scripts). Use functions from app.js directly — don't redefine them.
+4. **Static file security**: Files under `public/` are served without auth by Express static middleware. Never put sensitive files there.
+5. **check:admin-ui script**: `npm run check:admin-ui` may fail because `scripts/check-admin-ui.js` might not exist. This is a known repo issue — skip it.
 
 ## Devin Secrets Needed
 
-None for local testing. The app intentionally runs with zero secrets:
+No secrets required for local testing — default credentials work when `ADMIN_PASS` is unset.
 
-- `JWT_SECRET` is auto-generated and persisted under `${DATA_DIR}/.jwt_secret`.
-- `ADMIN_PASS` falls back to the hardcoded default `chathura123` when the env
-  var is unset (this is a local/dev-only fallback, NOT a real secret).
+## Playwright Login Script
 
-For real Railway / Render deploy verification you would want the user's
-platform credentials — but those tests are out of scope for Devin.
+```python
+import asyncio
+from playwright.async_api import async_playwright
 
-## Default credentials
+async def login():
+    async with async_playwright() as p:
+        browser = await p.chromium.connect_over_cdp("http://localhost:29229")
+        context = browser.contexts[0]
+        page = context.pages[-1]
+        await page.goto("http://localhost:5301/login")
+        await page.wait_for_load_state("networkidle")
+        await page.fill('input[type="text"]', 'admin')
+        await page.fill('input[type="password"]', 'chathura123')
+        await page.click('button[type="submit"]')
+        await page.wait_for_load_state("networkidle")
+        await asyncio.sleep(2)
+        print("Logged in:", page.url)
 
-- URL: `http://localhost:<PORT>/login`
-- User: `admin`
-- Password: `chathura123` (only when `ADMIN_PASS` env is empty / unset)
-
-## Sandboxed boot for free-host parity
-
-Always boot under a clean `DATA_DIR` outside the repo so you don't pollute the
-git working tree:
-
-```bash
-rm -rf /tmp/chathu-test
-env -i PATH=$PATH HOME=$HOME \
-    DATA_DIR=/tmp/chathu-test \
-    PORT=5301 \
-    ADMIN_PASS= JWT_SECRET= \
-    nohup node index.js > /tmp/chathu-bot.log 2>&1 &
-sleep 5
+asyncio.run(login())
 ```
-
-Then sanity-check:
-
-```bash
-curl -s http://localhost:5301/health    # JSON {ok:true,...}
-curl -s http://localhost:5301/healthz   # plain "ok"
-ls -la /tmp/chathu-test                 # .jwt_secret(0600), session/, sessions/, downloads/
-wc -c /tmp/chathu-test/.jwt_secret      # exactly 96 bytes
-```
-
-## Hitting the auth-protected API
-
-Login returns a JWT signed with the persisted secret:
-
-```bash
-TOKEN=$(curl -s -X POST http://localhost:5301/bot-api/auth/login \
-  -H 'Content-Type: application/json' \
-  -d '{"username":"admin","password":"chathura123"}' \
-  | python3 -c "import sys,json; print(json.load(sys.stdin)['token'])")
-curl -s http://localhost:5301/bot-api/sessions -H "Authorization: Bearer $TOKEN"
-```
-
-All `/bot-api/*` endpoints require the bearer token. Plain page routes
-(`/login`, `/dashboard`, `/users`, …) are gated by a cookie set after login —
-for browser tests just use the login form.
-
-## Restart-persistence test (proves JWT secret is reused, not regenerated)
-
-This is the test that catches a regression where `.jwt_secret` would be
-rewritten on every boot, silently invalidating already-issued admin tokens:
-
-```bash
-sha256sum /tmp/chathu-test/.jwt_secret > /tmp/pre.sha
-save_token=$TOKEN
-pkill -f "node index.js"; sleep 2
-# restart on a different port, same DATA_DIR
-env -i PATH=$PATH HOME=$HOME DATA_DIR=/tmp/chathu-test PORT=5302 ADMIN_PASS= JWT_SECRET= \
-  nohup node index.js > /tmp/chathu-bot2.log 2>&1 &
-sleep 5
-sha256sum /tmp/chathu-test/.jwt_secret > /tmp/post.sha
-diff /tmp/pre.sha /tmp/post.sha          # MUST be empty
-curl -i http://localhost:5302/bot-api/sessions -H "Authorization: Bearer $save_token" | head -1
-# MUST be HTTP/1.1 200
-```
-
-## Browser flow — Bot Settings modal
-
-The redesigned modal lives on **Fleet Orchestration** (`/users`):
-
-1. Login at `/login` → lands on `/dashboard`.
-2. Sidebar → **Fleet Orchestration**.
-3. Click **Manage** on a session row → modal opens.
-4. Six tabs in this order: General, Health, AI & Automation, Modules,
-   Anti-Delete Engine, Actions.
-
-Quick DOM probes via `console`:
-
-```js
-document.querySelectorAll('.pro-section').length          // expect ≥ 1 on General/AI tabs
-document.querySelectorAll('.advanced-section-inner').length // expect ≥ 1 on Anti-Delete tab
-performance.getEntriesByType('resource')
-  .filter(r => r.responseStatus >= 400).length             // expect 0
-```
-
-If either CSS class count returns `0` while the DOM is otherwise rendering,
-the `npm run check:admin-ui` lint regression is back — re-add standalone
-selectors to `public/css/app.css` (search for the existing `.pro-section,`
-and `.advanced-section-inner` rules around line 3793).
-
-## Static lint check before pushing
-
-```bash
-npm run check:admin-ui
-```
-
-Green output looks like `OK — 13 page(s) scanned, NN unique onclick handler(s) verified`.
-This catches both missing CSS classes AND `onclick` handlers referencing
-undefined functions in any `public/pages/*.html` or `public/admin.html`.
-
-## Things that look broken but are not
-
-- **"Awaiting QR Scan" forever in tests.** The bot has no real WhatsApp
-  pairing in this environment — that's expected. All UI/API tests should
-  treat the session as a stub.
-- **"Supreme MD Bot" label.** PR #1 only changed `.env.example`; the
-  in-code default in `config.js` / fleet seed still says "Supreme MD Bot".
-  Pre-existing, not a regression.
-- **`replit.md` references.** This file is a Replit-specific manifest, not
-  a CI dependency.
-
-## Cleanup
-
-```bash
-pkill -f "node index.js"
-rm -rf /tmp/chathu-test
-```
-
-Never commit `db.json`, `session/`, `sessions/`, `downloads/`, or `.jwt_secret`
-to the repo — they're already in `.gitignore` but make sure your DATA_DIR
-lives outside the repo tree.
