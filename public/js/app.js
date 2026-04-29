@@ -1028,12 +1028,9 @@
       } catch (e) { toast(e.message, 'error'); }
     }
 
-    function switchBotTab(tab) {
-      document.querySelectorAll('.bot-nav-item').forEach(t => t.classList.remove('active'));
-      document.getElementById(`botNavItem-${tab}`)?.classList.add('active');
-      document.querySelectorAll('.bot-tab-section').forEach(c => c.style.display = 'none');
-      const target = document.getElementById(`botTab-${tab}`);
-      if (target) target.style.display = 'block';
+    function findSessionById(id) {
+      const target = normalizeSessionId(id);
+      return (State.data.sessions || []).find(x => normalizeSessionId(x.id) === target);
     }
 
     function upsertSession(session) {
@@ -1115,27 +1112,10 @@
       State.data.autoReply = (State.data.autoReply || []).filter((entry) => entry.id !== id);
     }
 
-    const ADVANCED_MODULE_META = {
-      ai: { label: 'AI', desc: 'AI assistant commands' },
-      automation: { label: 'Automation', desc: 'Auto-view, auto-react, and reminder commands' },
-      download: { label: 'Download', desc: 'Media download commands' },
-      economy: { label: 'Economy', desc: 'Wallet and economy commands' },
-      fun: { label: 'Fun', desc: 'Entertainment commands' },
-      games: { label: 'Games', desc: 'Game commands' },
-      group: { label: 'Group', desc: 'Group management commands' },
-      nsfw: { label: 'NSFW', desc: 'NSFW commands for this bot only' },
-      owner: { label: 'Owner', desc: 'Owner-only administration commands' },
-      profile: { label: 'Profile', desc: 'Profile and identity commands' },
-      search: { label: 'Search', desc: 'YouTube, web, and search commands' },
-      status: { label: 'Status', desc: 'Status tools' },
-      sticker: { label: 'Sticker', desc: 'Sticker creation commands' },
-      system: { label: 'System', desc: 'Menu, ping, and system tools' },
-    };
-
-    const ADVANCED_MODULE_ORDER = [
-      'download', 'search', 'ai', 'fun', 'games', 'economy', 'group',
-      'status', 'automation', 'sticker', 'profile', 'system', 'nsfw', 'owner'
-    ];
+    function setChecked(id, value) {
+      const el = document.getElementById(id);
+      if (el) el.checked = !!value;
+    }
 
     function titleizeCategory(category) {
       return String(category || '')
@@ -1146,210 +1126,531 @@
     }
 
     function getAdvancedModules() {
-      const categories = [...new Set((State.data.commands || [])
-        .map((command) => String(command.category || '').trim().toLowerCase())
-        .filter(Boolean))];
-
-      const sorted = categories.sort((a, b) => {
-        const aIndex = ADVANCED_MODULE_ORDER.indexOf(a);
-        const bIndex = ADVANCED_MODULE_ORDER.indexOf(b);
-        const normA = aIndex === -1 ? Number.MAX_SAFE_INTEGER : aIndex;
-        const normB = bIndex === -1 ? Number.MAX_SAFE_INTEGER : bIndex;
-        if (normA !== normB) return normA - normB;
-        return a.localeCompare(b);
-      });
-
-      return sorted.map((key) => ({
-        key,
-        label: ADVANCED_MODULE_META[key]?.label || titleizeCategory(key),
-        desc: ADVANCED_MODULE_META[key]?.desc || `${titleizeCategory(key)} commands`,
-      }));
+      // Legacy helper kept so other callers (commands page etc.) still compile.
+      return BOT_MODULE_DEF.map((m) => ({ key: m.key, label: m.label, desc: m.desc }));
     }
 
-    function setChecked(id, value) {
+    // ===== BOT SETTINGS MODAL — module-keyed orchestration =====
+    // Module-key → command-category map. Module keys are the stable identifiers
+    // shown in the Modules tab; categories are what `cmd.category` reports.
+    const BOT_MODULE_DEF = [
+      { key: 'ai', label: 'AI / Creative', desc: 'AI assistant + creative replies', icon: 'cpu', categories: ['ai', 'creative'] },
+      { key: 'automation', label: 'Automation / Auto-Reply', desc: 'Auto-view, auto-react, reminders', icon: 'refresh', categories: ['automation'] },
+      { key: 'downloaders', label: 'Downloaders', desc: 'Media download commands', icon: 'download', categories: ['download'] },
+      { key: 'search', label: 'Search & Info', desc: 'Web, lookup, info commands', icon: 'search', categories: ['search'] },
+      { key: 'group', label: 'Group Admin', desc: 'Group management + moderation', icon: 'users', categories: ['group'] },
+      { key: 'user', label: 'User Tools', desc: 'Profile and identity commands', icon: 'user', categories: ['profile'] },
+      { key: 'system', label: 'System Tools', desc: 'Menu, ping, settings, sticker maker', icon: 'monitor', categories: ['system', 'sticker', 'settings', 'settings-manager'] },
+      { key: 'owner', label: 'Owner Panel', desc: 'Owner-only commands', icon: 'crown', categories: ['owner'] },
+      { key: 'economy', label: 'Economy', desc: 'Wallet and economy commands', icon: 'gauge', categories: ['economy'] },
+      { key: 'fun', label: 'Fun & Games', desc: 'Entertainment + game commands', icon: 'zap', categories: ['fun', 'games'] },
+      { key: 'scheduler', label: 'Scheduler', desc: 'Scheduled message dispatch', icon: 'clock', categories: [] },
+      { key: 'broadcast', label: 'Broadcast', desc: 'Mass message campaigns', icon: 'message-square', categories: [] },
+      { key: 'files', label: 'Files', desc: 'File storage & retrieval', icon: 'download', categories: [] },
+      { key: 'privacy', label: 'Privacy Tools', desc: 'Anti-delete + view-once recovery', icon: 'shield', categories: [] },
+      { key: 'status', label: 'Status Tools', desc: 'Status auto-view / react', icon: 'eye', categories: ['status'] },
+      { key: 'nsfw', label: 'NSFW / Adult Zone', desc: 'NSFW commands — enable at your own risk', icon: 'alert', categories: ['nsfw'], dangerous: true, defaultDisabled: true },
+    ];
+
+    const BOT_MODULE_KEYS = BOT_MODULE_DEF.map((m) => m.key);
+
+    function getBotModuleDef() { return BOT_MODULE_DEF; }
+
+    // Inline SVG icons. Match `data-icon` values used in users.html.
+    const BOT_ICONS = {
+      robot: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="6" width="16" height="13" rx="2"/><path d="M9 10h.01M15 10h.01M9 15h6"/><path d="M12 2v4M5 19v2M19 19v2"/></svg>',
+      fingerprint: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12C2 6 6 2 12 2s10 4 10 10v3"/><path d="M6 12a6 6 0 0 1 12 0v6"/><path d="M10 12a2 2 0 0 1 4 0v6"/><path d="M14 18v3"/></svg>',
+      phone: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.37 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.33 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"/></svg>',
+      crown: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 17h20l-2-9-5 4-3-7-3 7-5-4z"/></svg>',
+      terminal: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>',
+      shield: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l8 4v6c0 5-3.5 9-8 10-4.5-1-8-5-8-10V6l8-4z"/></svg>',
+      power: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18.36 6.64a9 9 0 1 1-12.72 0"/><line x1="12" y1="2" x2="12" y2="12"/></svg>',
+      eye: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>',
+      'message-circle': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>',
+      'message-square': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>',
+      activity: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>',
+      cpu: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><line x1="9" y1="1" x2="9" y2="4"/><line x1="15" y1="1" x2="15" y2="4"/><line x1="9" y1="20" x2="9" y2="23"/><line x1="15" y1="20" x2="15" y2="23"/><line x1="20" y1="9" x2="23" y2="9"/><line x1="20" y1="14" x2="23" y2="14"/><line x1="1" y1="9" x2="4" y2="9"/><line x1="1" y1="14" x2="4" y2="14"/></svg>',
+      layers: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>',
+      users: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
+      gauge: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 14l4-4"/><path d="M3.34 19a10 10 0 1 1 17.32 0"/></svg>',
+      zap: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>',
+      wifi: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13a10 10 0 0 1 14 0"/><path d="M8.5 16.5a5 5 0 0 1 7 0"/><line x1="12" y1="20" x2="12.01" y2="20"/><path d="M2 9a15 15 0 0 1 20 0"/></svg>',
+      monitor: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>',
+      clock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>',
+      alert: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>',
+      qr: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><line x1="14" y1="14" x2="21" y2="14"/><line x1="14" y1="21" x2="21" y2="21"/><line x1="14" y1="17" x2="17" y2="17"/></svg>',
+      key: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="15" r="4"/><path d="M10.85 12.15L19 4l3 3-3 3 2 2-2 2-2-2-1.5 1.5"/></svg>',
+      refresh: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>',
+      'x-circle': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>',
+      trash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>',
+      copy: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>',
+      download: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>',
+      search: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>',
+      user: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>',
+    };
+
+    function botIconSvg(name) {
+      return BOT_ICONS[name] || '';
+    }
+
+    function paintBotIcons(root) {
+      const scope = root || document;
+      scope.querySelectorAll('.bot-icon[data-icon]').forEach((el) => {
+        if (el.dataset.painted === '1') return;
+        el.innerHTML = botIconSvg(el.dataset.icon);
+        el.dataset.painted = '1';
+      });
+    }
+
+    function switchBotTab(tab) {
+      document.querySelectorAll('.bot-nav-item').forEach((t) => t.classList.remove('active'));
+      document.getElementById(`botNavItem-${tab}`)?.classList.add('active');
+      document.querySelectorAll('.bot-tab-section').forEach((c) => (c.style.display = 'none'));
+      const target = document.getElementById(`botTab-${tab}`);
+      if (target) target.style.display = 'block';
+      State.activeBotTab = tab;
+      if (tab === 'modules') renderBotModules();
+      if (tab === 'health') renderBotHealth();
+      if (tab === 'groups') renderBotGroups();
+      if (tab === 'limits') renderBotLimits();
+      if (tab === 'logs') renderBotLogs();
+    }
+
+    function setBotInputValue(id, value) {
       const el = document.getElementById(id);
-      if (el) el.checked = !!value;
+      if (!el) return;
+      if (el.type === 'checkbox') el.checked = !!value;
+      else el.value = value == null ? '' : String(value);
+    }
+
+    function getBotInputValue(id) {
+      const el = document.getElementById(id);
+      if (!el) return undefined;
+      if (el.type === 'checkbox') return !!el.checked;
+      if (el.type === 'number') {
+        const n = parseInt(el.value, 10);
+        return Number.isFinite(n) ? n : null;
+      }
+      return el.value;
+    }
+
+    function getActiveBotSession() {
+      const id = State.activeConfigSession;
+      if (!id) return null;
+      return findSessionById(id) || null;
+    }
+
+    function getEffective(s, key, fallback) {
+      if (!s) return fallback;
+      if (s[key] === null || s[key] === undefined) return fallback;
+      return s[key];
     }
 
     function syncBotSettingsModal(s) {
       if (!s) return;
-      const settings = State.data.settings || {};
-      const mode = s.workMode || 'public';
-      const disabled = Array.isArray(s.disabledModules) ? s.disabledModules : [];
+      paintBotIcons();
+      const g = State.data.settings || {};
       const isMain = s.id === '__main__';
-      const startedAt = s.startedAt || s.connectedAt || null;
-      const disabledModules = disabled.length;
-      const badge = document.getElementById('botAccessBadge');
-      const ownerInput = document.getElementById('advBotOwner');
-      const workModeSelect = document.getElementById('advBotWorkMode');
+      const mode = (s.workMode || 'public').toLowerCase();
+      const status = s.status || 'Offline';
+      const connected = isSessionConnected(s);
 
-      const label = s.name || (isMain ? 'Main Controller' : `Sub-Bot ${s.id}`);
-      if (ownerInput) ownerInput.value = s.owner || '';
-      if (workModeSelect) workModeSelect.value = mode;
-      const nameInput = document.getElementById('advBotName');
-      const prefixInput = document.getElementById('advBotPrefix');
-      if (nameInput) nameInput.value = s.name || '';
-      if (prefixInput) prefixInput.value = s.prefix || '';
-      setChecked('advBotEnabled', s.botEnabled !== false);
-      setChecked('advBotAutoStatus', s.autoStatus !== false);
+      const badge = document.getElementById('botAccessBadge');
       if (badge) {
         badge.textContent = mode.toUpperCase();
-        badge.className = `badge ${mode === 'private' ? 'violet' : mode === 'self' ? 'amber' : 'blue'}`;
+        badge.className = `badge ${mode === 'private' ? 'violet' : mode === 'self' ? 'amber' : mode === 'group' ? 'green' : 'blue'}`;
+      }
+      setText('botSettingsSubtitle', `${s.name || (isMain ? 'Main Bot' : s.id)} · ${s.number || s.id || 'Unlinked'}`);
+
+      const pill = document.getElementById('botStatusPill');
+      const pillText = document.getElementById('botStatusPillText');
+      if (pill && pillText) {
+        pillText.textContent = status;
+        pill.className = `bot-status-pill ${connected ? 'is-online' : (status.toLowerCase().includes('await') ? 'is-pending' : 'is-offline')}`;
       }
 
-      setText('generalBotName', label);
-      setText('generalBotStatus', s.status || 'Offline');
-      setText('generalBotLastSync', fmtTime(new Date()));
-      setText('generalBotMode', mode.toUpperCase());
-      setText('botStatProcessed', (s.processedCount || 0).toLocaleString());
-      setText('botStatCommands', (s.commandsCount || 0).toLocaleString());
-      setText('generalBotAutoStatus', s.autoStatus !== false ? 'Enabled' : 'Disabled');
-      setText('botHealthStatus', s.status || 'Offline');
-      setText('botHealthEnabled', s.botEnabled !== false ? 'ACTIVE' : 'OFF');
-      setText('botHealthUptime', getSessionAgeSeconds(s) > 0 ? fmtUptime(getSessionAgeSeconds(s)) : 'No active uptime');
-      setText('botHealthOwner', s.owner || 'System Admin');
-      setText('botHealthMode', mode.toUpperCase());
-      setText('botHealthModules', disabledModules ? `${disabledModules} disabled` : 'All enabled');
-      setText('botHealthLastSeen', startedAt ? fmtTime(startedAt) : '--');
-      setText('botHealthSessionId', s.id || '--');
-      setText('botHealthNumber', s.number || 'Not linked');
+      // ── General
+      setBotInputValue('botGenName', s.name || (isMain ? 'Chathu MD' : ''));
+      setBotInputValue('botGenSessionId', s.id || '');
+      setBotInputValue('botGenWhatsappNumber', s.number || 'Not linked');
+      setBotInputValue('botGenOwner', s.owner || '');
+      setBotInputValue('botGenPrefix', s.prefix || '.');
+      setBotInputValue('botGenWorkMode', mode);
+      setBotInputValue('botGenEnabled', s.botEnabled !== false);
+      setBotInputValue('botGenAutoStatus', s.autoStatus !== false);
+      setBotInputValue('botGenMentionReply', s.mentionReply || g.mentionReply || '');
 
-      const removeBtn = document.getElementById('botActionRemove');
-      if (removeBtn) removeBtn.style.display = '';
-      const disconnectBtn = document.getElementById('botActionDisconnect');
-      if (disconnectBtn) disconnectBtn.disabled = !isSessionConnected(s);
+      // ── AI
+      setBotInputValue('botAiAutoReply', getEffective(s, 'aiAutoReply', g.aiAutoReply === true));
+      setBotInputValue('botAiAutoVoice', getEffective(s, 'aiAutoVoice', g.aiAutoVoice === true));
+      setBotInputValue('botAiPersona', s.aiAutoPersona || g.aiAutoPersona || 'friendly');
+      setBotInputValue('botAiLang', s.aiAutoLang || g.aiAutoLang || 'auto');
+      const aiGroupModeRaw = (s.aiGroupMode || g.aiGroupMode || 'mention').toLowerCase();
+      const aiGroupMode = aiGroupModeRaw === 'always' || aiGroupModeRaw === 'reply' ? 'everyone' : aiGroupModeRaw;
+      setBotInputValue('botAiGroupMode', ['silent', 'mention', 'everyone'].includes(aiGroupMode) ? aiGroupMode : 'mention');
+      setBotInputValue('botAiMaxWords', s.aiMaxWords || g.aiMaxWords || 60);
+      setBotInputValue('botAiSystemInstruction', s.aiSystemInstruction || g.aiSystemInstruction || '');
 
-      // Effective settings (Per-bot or Global fallback)
-      const g = State.data.settings || {};
-      const effAutoRead = (s.autoRead !== null && s.autoRead !== undefined) ? s.autoRead : (g.autoRead !== false);
-      const effAutoTyping = (s.autoTyping !== null && s.autoTyping !== undefined) ? s.autoTyping : (g.autoTyping !== false);
-      const effAutoReact = (s.autoReactStatus !== null && s.autoReactStatus !== undefined) ? s.autoReactStatus : (g.autoReactStatus === true);
-      const effNsfw = (s.nsfwEnabled !== null && s.nsfwEnabled !== undefined) ? s.nsfwEnabled : (g.nsfwEnabled !== false);
-      const effAutoReply = (s.autoReply !== null && s.autoReply !== undefined) ? s.autoReply : true;
+      // ── Automation
+      setBotInputValue('botAutoReply', getEffective(s, 'autoReply', true));
+      setBotInputValue('botAutoTyping', getEffective(s, 'autoTyping', g.autoTyping !== false));
+      setBotInputValue('botAutoRead', getEffective(s, 'autoRead', g.autoRead !== false));
+      setBotInputValue('botAutoReact', getEffective(s, 'autoReactStatus', g.autoReactStatus === true));
 
-      setChecked('advBotAutoRead', effAutoRead);
-      setChecked('advBotAutoTyping', effAutoTyping);
-      setChecked('advBotAutoReact', effAutoReact);
-      setChecked('advBotNsfw', effNsfw);
-      setChecked('advBotAutoReply', effAutoReply);
-
-      // Pro / AI feature toggles (per-bot, falling back to global settings)
-      const proKeys = [
-        ['alwaysOnline', 'advBotAlwaysOnline', 'generalProAlwaysOnline'],
-        ['antiCall', 'advBotAntiCall', 'generalProAntiCall'],
-        ['antiDelete', 'advBotAntiDelete', 'generalProAntiDelete'],
-        ['autoBio', 'advBotAutoBio', 'generalProAutoBio'],
-        ['alwaysRecording', 'advBotAlwaysRecording', 'generalProAutoRecording'],
-        ['antiGroupJoin', 'advBotAntiGroupJoin', 'generalProAntiGroupJoin'],
-        ['autoViewStatus', 'advBotAutoViewStatus', null],
-      ];
-      proKeys.forEach(([k, inputId, statusId]) => {
-        let v = (s[k] !== null && s[k] !== undefined) ? s[k] : (g[k] === true);
-        // antiDelete may be stored as an object {enabled:bool, filters:{}} — coerce.
-        if (k === 'antiDelete' && typeof v === 'object' && v !== null) v = v.enabled === true;
-        setChecked(inputId, !!v);
-        if (statusId) setText(statusId, v ? '✓ Enabled' : '✗ Disabled');
-      });
-
-      const aiAutoReply = (s.aiAutoReply !== null && s.aiAutoReply !== undefined) ? s.aiAutoReply : (g.aiAutoReply === true);
-      const aiAutoVoice = (s.aiAutoVoice !== null && s.aiAutoVoice !== undefined) ? s.aiAutoVoice : (g.aiAutoVoice === true);
-      const aiPersona = s.aiAutoPersona || g.aiAutoPersona || 'friendly';
-      const aiLang = s.aiAutoLang || g.aiAutoLang || 'auto';
-      const aiGroupMode = s.aiGroupMode || g.aiGroupMode || 'mention';
-      const aiMaxWords = s.aiMaxWords || g.aiMaxWords || 60;
-      setChecked('advBotAiAutoReply', aiAutoReply);
-      setChecked('advBotAiAutoVoice', aiAutoVoice);
-      const personaSel = document.getElementById('advBotAiPersona');
-      if (personaSel) personaSel.value = aiPersona;
-      const langSel = document.getElementById('advBotAiLang');
-      if (langSel) langSel.value = aiLang;
-      const groupModeSel = document.getElementById('advBotAiGroupMode');
-      if (groupModeSel) groupModeSel.value = aiGroupMode === 'always' ? 'reply' : aiGroupMode;
-      const maxWordsInput = document.getElementById('advBotAiMaxWords');
-      if (maxWordsInput) maxWordsInput.value = aiMaxWords;
-      const sysInstr = document.getElementById('advBotAiSystemInstruction');
-      if (sysInstr) sysInstr.value = s.aiSystemInstruction || g.aiSystemInstruction || '';
-      const mentionReply = document.getElementById('advBotMentionReply');
-      if (mentionReply) mentionReply.value = s.mentionReply || g.mentionReply || '';
-
-      setText('generalProAlwaysOnline', s.alwaysOnline ? '✓ Enabled' : '✗ Disabled');
-      setText('generalAiAutoReply', aiAutoReply ? '✓ Enabled' : '✗ Disabled');
-      setText('generalAiAutoVoice', aiAutoVoice ? '✓ Enabled' : '✗ Disabled');
-      setText('generalAiPersona', aiPersona);
-      setText('generalAiLang', aiLang);
-
-      // Pro feature health metrics (best-effort placeholders)
-      setText('healthProMsgRecovered', s.metricsMsgRecovered || 0);
-      setText('healthProCallsBlocked', s.metricsCallsBlocked || 0);
-      setText('healthProStatusViews', s.metricsStatusViews || 0);
-      setText('healthProBioUpdates', s.metricsBioUpdates || 0);
-      setText('healthAiResponses', s.metricsAiResponses || 0);
-      setText('healthAiVoiceMessages', s.metricsAiVoiceMessages || 0);
-      setText('healthAiAvgResponse', s.metricsAiAvgResponse ? `${s.metricsAiAvgResponse}ms` : '0ms');
-      setText('healthAiAccuracy', s.metricsAiAccuracy || '--');
-
-      // Anti-Delete capture matrix
-      const ad = (typeof s.antiDelete === 'object' && s.antiDelete) ? s.antiDelete : (g.antiDelete || {});
-      const adFilters = (ad && ad.filters) || {};
-      setChecked('advAdFilterText', !!adFilters.text);
-      setChecked('advAdFilterImage', !!adFilters.image);
-      setChecked('advAdFilterVideo', !!adFilters.video);
-      setChecked('advAdFilterAudio', !!adFilters.audio);
-      setChecked('advAdFilterSticker', !!adFilters.sticker);
-      setChecked('advAdFilterDoc', !!adFilters.doc);
-      const adTarget = ad && ad.target === 'owner' ? 'owner' : 'chat';
-      const chatCard = document.getElementById('adTargetChat');
-      const ownerCard = document.getElementById('adTargetOwner');
+      // ── Privacy / Anti-Delete
+      const ad = (typeof s.antiDelete === 'object' && s.antiDelete) ? s.antiDelete : (g.antiDelete && typeof g.antiDelete === 'object' ? g.antiDelete : {});
+      setBotInputValue('botAntiDeleteEnabled', !!(ad && ad.enabled) || s.antiDelete === true);
+      setBotInputValue('botAntiViewOnce', !!s.antiViewOnce);
+      setBotInputValue('botPrivacyAutoCleanup', !!(s.privacyAutoCleanup ?? ad?.autoCleanup));
+      setBotInputValue('botPrivacyMaxStorage', s.privacyMaxStorageMb ?? ad?.maxStorageMb ?? 500);
+      const filters = ad?.filters || {};
+      setBotInputValue('botAdFilterText', !!filters.text);
+      setBotInputValue('botAdFilterImage', !!filters.image);
+      setBotInputValue('botAdFilterVideo', !!filters.video);
+      setBotInputValue('botAdFilterAudio', !!filters.audio);
+      setBotInputValue('botAdFilterSticker', !!filters.sticker);
+      setBotInputValue('botAdFilterDoc', !!filters.doc);
+      const adTarget = ad?.target === 'owner' ? 'owner' : 'chat';
+      const chatCard = document.getElementById('botPrivacyTargetChat');
+      const ownerCard = document.getElementById('botPrivacyTargetOwner');
       if (chatCard) chatCard.classList.toggle('active', adTarget === 'chat');
       if (ownerCard) ownerCard.classList.toggle('active', adTarget === 'owner');
-      setText('adStatSaved', s.metricsAntiDeleteSaved || 0);
-      setText('adStatUptime', s.metricsAntiDeleteUptime || '0h 0m');
 
-      // Health → Enabled Modules list
-      const healthModules = document.getElementById('healthModulesList');
-      if (healthModules) {
-        const mods = getAdvancedModules();
-        if (!mods.length) {
-          healthModules.innerHTML = '<div class="muted text-xs">No modules registered yet</div>';
-        } else {
-          healthModules.innerHTML = mods.map((mod) => {
-            const enabled = !disabled.includes(mod.key);
-            return `<div class="row" style="padding:8px 12px;border:1px solid rgba(255,255,255,0.06);border-radius:10px;margin-bottom:6px;justify-content:space-between"><span>${escapeHtml(mod.label)}</span><span class="badge ${enabled ? 'green' : 'red'}">${enabled ? 'ON' : 'OFF'}</span></div>`;
-          }).join('');
-        }
-      }
+      // ── Limits
+      const limits = s.limits || g.limits || {};
+      setBotInputValue('botLimitsCmdRate', limits.cmdPerMin ?? 60);
+      setBotInputValue('botLimitsAiRate', limits.aiPerMin ?? 20);
+      setBotInputValue('botLimitsDownloadCooldown', limits.downloadCooldownSec ?? 5);
+      setBotInputValue('botLimitsMaxDownloads', limits.maxConcurrentDownloads ?? 3);
+      setBotInputValue('botLimitsMaxFileSize', limits.maxFileSizeMb ?? 100);
+      setBotInputValue('botLimitsBroadcastDelay', limits.broadcastDelayMs ?? 1500);
+      setBotInputValue('botLimitsSchedulerDelay', limits.schedulerDelayMs ?? 800);
 
-      const grid = document.getElementById('advModuleGrid');
+      renderBotModules();
+      renderBotHealth();
+      // Lazy-render the rest only when their tab opens; switchBotTab handles it.
+    }
+
+    function renderBotModules() {
+      const grid = document.getElementById('botModuleGrid');
       if (!grid) return;
-      grid.innerHTML = getAdvancedModules().map((mod) => {
+      const s = getActiveBotSession();
+      const disabled = (s && Array.isArray(s.disabledModules)) ? s.disabledModules : [];
+      grid.innerHTML = BOT_MODULE_DEF.map((mod) => {
         const enabled = !disabled.includes(mod.key);
+        const icon = botIconSvg(mod.icon || 'layers');
+        const dangerCls = mod.dangerous ? ' module-danger' : '';
         return `
-      <div class="control-card">
-        <div>
-          <div class="label">${escapeHtml(mod.label)}</div>
-          <div class="desc">${escapeHtml(mod.desc)}</div>
-        </div>
-        <span class="switch">
-          <input type="checkbox" ${enabled ? 'checked' : ''} onchange="toggleAdvancedModule('${mod.key}', this.checked, this)" />
-          <span class="slider"></span>
-        </span>
-      </div>
-    `;
+          <div class="control-card module-card${dangerCls}${enabled ? ' is-enabled' : ' is-disabled'}">
+            <div class="module-card-body">
+              <div class="module-icon">${icon}</div>
+              <div>
+                <div class="label">${escapeHtml(mod.label)}</div>
+                <div class="desc">${escapeHtml(mod.desc)}${mod.dangerous ? ' <span class="module-warn">⚠ Dangerous</span>' : ''}</div>
+              </div>
+            </div>
+            <span class="switch">
+              <input type="checkbox" data-bot-module="${escapeHtml(mod.key)}" ${enabled ? 'checked' : ''} />
+              <span class="slider"></span>
+            </span>
+          </div>`;
       }).join('');
     }
 
-    function findSessionById(id) {
-      const target = normalizeSessionId(id);
-      return (State.data.sessions || []).find(x => normalizeSessionId(x.id) === target);
+    function setAllBotModules(enabled) {
+      document.querySelectorAll('#botModuleGrid input[data-bot-module]').forEach((el) => {
+        el.checked = !!enabled;
+        const card = el.closest('.module-card');
+        if (card) {
+          card.classList.toggle('is-enabled', !!enabled);
+          card.classList.toggle('is-disabled', !enabled);
+        }
+      });
+    }
+
+    function collectBotModules() {
+      const inputs = document.querySelectorAll('#botModuleGrid input[data-bot-module]');
+      const disabled = [];
+      inputs.forEach((el) => {
+        if (!el.checked) disabled.push(el.dataset.botModule);
+      });
+      return disabled;
+    }
+
+    function collectAntiDeletePayload() {
+      const enabled = !!getBotInputValue('botAntiDeleteEnabled');
+      const target = document.getElementById('botPrivacyTargetOwner')?.classList.contains('active') ? 'owner' : 'chat';
+      return {
+        enabled,
+        target,
+        autoCleanup: !!getBotInputValue('botPrivacyAutoCleanup'),
+        maxStorageMb: getBotInputValue('botPrivacyMaxStorage') || 500,
+        filters: {
+          text: !!getBotInputValue('botAdFilterText'),
+          image: !!getBotInputValue('botAdFilterImage'),
+          video: !!getBotInputValue('botAdFilterVideo'),
+          audio: !!getBotInputValue('botAdFilterAudio'),
+          sticker: !!getBotInputValue('botAdFilterSticker'),
+          doc: !!getBotInputValue('botAdFilterDoc'),
+        },
+      };
+    }
+
+    function collectBotSettings(scope) {
+      const payload = {};
+      if (scope === 'general' || scope === 'all') {
+        payload.name = getBotInputValue('botGenName');
+        payload.owner = getBotInputValue('botGenOwner');
+        payload.prefix = getBotInputValue('botGenPrefix');
+        payload.workMode = getBotInputValue('botGenWorkMode');
+        payload.botEnabled = !!getBotInputValue('botGenEnabled');
+        payload.autoStatus = !!getBotInputValue('botGenAutoStatus');
+        payload.mentionReply = getBotInputValue('botGenMentionReply');
+      }
+      if (scope === 'ai' || scope === 'all') {
+        payload.aiAutoReply = !!getBotInputValue('botAiAutoReply');
+        payload.aiAutoVoice = !!getBotInputValue('botAiAutoVoice');
+        payload.aiAutoPersona = getBotInputValue('botAiPersona');
+        payload.aiAutoLang = getBotInputValue('botAiLang');
+        payload.aiGroupMode = getBotInputValue('botAiGroupMode');
+        payload.aiMaxWords = getBotInputValue('botAiMaxWords') || 60;
+        payload.aiSystemInstruction = getBotInputValue('botAiSystemInstruction');
+        payload.autoReply = !!getBotInputValue('botAutoReply');
+        payload.autoTyping = !!getBotInputValue('botAutoTyping');
+        payload.autoRead = !!getBotInputValue('botAutoRead');
+        payload.autoReactStatus = !!getBotInputValue('botAutoReact');
+      }
+      if (scope === 'modules' || scope === 'all') {
+        payload.disabledModules = collectBotModules();
+      }
+      if (scope === 'privacy' || scope === 'all') {
+        payload.antiDelete = collectAntiDeletePayload();
+        payload.antiViewOnce = !!getBotInputValue('botAntiViewOnce');
+        payload.privacyAutoCleanup = !!getBotInputValue('botPrivacyAutoCleanup');
+        payload.privacyMaxStorageMb = getBotInputValue('botPrivacyMaxStorage') || 500;
+      }
+      if (scope === 'limits' || scope === 'all') {
+        payload.limits = {
+          cmdPerMin: getBotInputValue('botLimitsCmdRate') || 0,
+          aiPerMin: getBotInputValue('botLimitsAiRate') || 0,
+          downloadCooldownSec: getBotInputValue('botLimitsDownloadCooldown') || 0,
+          maxConcurrentDownloads: getBotInputValue('botLimitsMaxDownloads') || 3,
+          maxFileSizeMb: getBotInputValue('botLimitsMaxFileSize') || 100,
+          broadcastDelayMs: getBotInputValue('botLimitsBroadcastDelay') || 0,
+          schedulerDelayMs: getBotInputValue('botLimitsSchedulerDelay') || 0,
+        };
+      }
+      return payload;
+    }
+
+    async function saveBotSettings(scope) {
+      const id = State.activeConfigSession;
+      if (!id) return toast('Select a bot first', 'error');
+      const payload = collectBotSettings(scope);
+      try {
+        const res = await api(`/bot-api/sessions/${encodeURIComponent(id)}/settings`, {
+          method: 'POST',
+          body: JSON.stringify(payload),
+        });
+        if (res?.session) {
+          const updated = upsertSession(res.session);
+          if (updated) syncBotSettingsModal(updated);
+        }
+        toast(`Saved ${scope === 'all' ? 'settings' : scope}`, 'success');
+      } catch (e) {
+        toast(e.message || 'Failed to save', 'error');
+      }
+    }
+
+    function setAdTarget(target) {
+      const next = target === 'owner' ? 'owner' : 'chat';
+      const chatCard = document.getElementById('botPrivacyTargetChat');
+      const ownerCard = document.getElementById('botPrivacyTargetOwner');
+      if (chatCard) chatCard.classList.toggle('active', next === 'chat');
+      if (ownerCard) ownerCard.classList.toggle('active', next === 'owner');
+    }
+
+    function fmtRelativeTime(ts) {
+      if (!ts) return '--';
+      const d = new Date(ts);
+      if (Number.isNaN(d.getTime())) return '--';
+      const diffMs = Date.now() - d.getTime();
+      if (diffMs < 0) return d.toLocaleTimeString();
+      const sec = Math.floor(diffMs / 1000);
+      if (sec < 60) return `${sec}s ago`;
+      const min = Math.floor(sec / 60);
+      if (min < 60) return `${min}m ago`;
+      const hr = Math.floor(min / 60);
+      if (hr < 24) return `${hr}h ago`;
+      return d.toLocaleString();
+    }
+
+    function renderBotHealth() {
+      const s = getActiveBotSession();
+      if (!s) return;
+      setText('botHealthConn', s.status || 'Offline');
+      setText('botHealthPhone', s.number || 'Not linked');
+      setText('botHealthPlatform', s.platform || (s.id === '__main__' ? 'Main Process' : 'Sub Session'));
+      setText('botHealthStartedAt', s.startedAt ? fmtRelativeTime(s.startedAt) : '--');
+      setText('botHealthConnectedAt', s.connectedAt ? fmtRelativeTime(s.connectedAt) : (s.startedAt ? fmtRelativeTime(s.startedAt) : '--'));
+      setText('botHealthLastError', s.lastError || s.lastErrorMessage || 'None');
+      const qrAvail = !!s.qrAvailable;
+      setText('botHealthQrStatus', qrAvail ? 'Available' : (s.qrPaused ? 'Paused' : 'Idle'));
+      const pair = s.pairCode ? `${s.pairCode}` : (s.pairCodeExpiresAt ? 'Expired' : 'None');
+      setText('botHealthPairStatus', pair);
+      setText('botHealthProcessed', (s.processedCount || 0).toLocaleString());
+      setText('botHealthCommands', (s.commandsCount || 0).toLocaleString());
+      setText('botHealthReconnects', (s.reconnectAttempts ?? s.reconnectCount ?? 0).toLocaleString());
+    }
+
+    async function refreshBotHealth() {
+      try { await loadSessions(); } catch { }
+      const s = getActiveBotSession();
+      if (s) syncBotSettingsModal(s);
+      else renderBotHealth();
+    }
+
+    async function renderBotGroups() {
+      const list = document.getElementById('botGroupsList');
+      if (!list) return;
+      const id = State.activeConfigSession;
+      if (!id) {
+        list.innerHTML = '<div class="empty-state">Select a bot first.</div>';
+        return;
+      }
+      list.innerHTML = '<div class="empty-state">Loading…</div>';
+      try {
+        const groups = await api(`/bot-api/sessions/${encodeURIComponent(id)}/groups`);
+        if (!Array.isArray(groups) || !groups.length) {
+          list.innerHTML = '<div class="empty-state">No groups handled by this bot yet.</div>';
+          return;
+        }
+        list.innerHTML = groups.map((g) => {
+          const name = escapeHtml(g.name || g.subject || g.jid || 'Unknown');
+          const members = g.memberCount ?? g.size ?? '--';
+          const features = [];
+          if (g.welcome) features.push('Welcome');
+          if (g.goodbye) features.push('Goodbye');
+          if (g.antiLink) features.push('Anti-Link');
+          if (g.aiMode) features.push(`AI: ${g.aiMode}`);
+          const badges = features.map((f) => `<span class="badge blue">${escapeHtml(f)}</span>`).join('');
+          return `
+            <div class="group-row">
+              <div class="group-row-main">
+                <div class="group-name">${name}</div>
+                <div class="group-meta">${escapeHtml(g.jid || '')} · ${members} members</div>
+                <div class="group-badges">${badges}</div>
+              </div>
+              <div class="group-row-actions">
+                <button class="btn btn-secondary btn-sm" onclick="setGroupBotPrimary('${escapeHtml(g.jid || '')}')">Set Primary</button>
+              </div>
+            </div>`;
+        }).join('');
+      } catch (e) {
+        list.innerHTML = `<div class="empty-state">Failed to load groups: ${escapeHtml(e.message || String(e))}</div>`;
+      }
+    }
+
+    async function setGroupBotPrimary(jid) {
+      const id = State.activeConfigSession;
+      if (!id || !jid) return;
+      try {
+        await api('/bot-api/groups/upsert', {
+          method: 'POST',
+          body: JSON.stringify({ jid, sessionId: id }),
+        });
+        toast('Primary bot updated', 'success');
+        renderBotGroups();
+      } catch (e) {
+        toast(e.message || 'Failed', 'error');
+      }
+    }
+
+    function renderBotLimits() {
+      // Inputs are already bound by syncBotSettingsModal on modal open.
+      // Do NOT call syncBotSettingsModal here — it would wipe unsaved
+      // changes in every other tab.
+    }
+
+    function getActiveLogFilters() {
+      const set = new Set();
+      document.querySelectorAll('#botTab-logs input[data-log-filter]').forEach((el) => {
+        if (el.checked) set.add(el.dataset.logFilter);
+      });
+      return set;
+    }
+
+    function classifyLogMessage(msg) {
+      const t = String(msg || '').toLowerCase();
+      if (/error|failed|fatal|exception|enotfound|econn/.test(t)) return 'error';
+      if (/connect|reconnect|disconnect|paircode|pair code|qr|socket|stream/.test(t)) return 'connection';
+      if (/ai |\[ai\]|gemini|openrouter|groq|persona/.test(t)) return 'ai';
+      if (/download|ytmp|tiktok|fbdl|igdl|yt-dlp/.test(t)) return 'download';
+      if (/\[command|cmd\.|command/.test(t)) return 'command';
+      return 'other';
+    }
+
+    async function renderBotLogs() {
+      const list = document.getElementById('botLogsList');
+      if (!list) return;
+      list.innerHTML = '<div class="empty-state">Loading…</div>';
+      try {
+        const logs = await api('/bot-api/logs?limit=300');
+        const id = State.activeConfigSession;
+        const session = getActiveBotSession();
+        const filters = getActiveLogFilters();
+        const sessionTag = session && session.id !== '__main__' ? `[Session ${id}]` : '[Main';
+        const filtered = (logs || []).filter((entry) => {
+          const msg = String(entry.message || '');
+          if (id && id !== '__main__' && !msg.includes(`[Session ${id}]`)) return false;
+          if (id === '__main__' && /\[Session [^\]]+\]/.test(msg)) return false;
+          const cat = classifyLogMessage(msg);
+          if (cat === 'other') return true;
+          return filters.has(cat);
+        });
+        if (!filtered.length) {
+          list.innerHTML = '<div class="empty-state">No log entries match the current filters.</div>';
+          return;
+        }
+        list.innerHTML = filtered.slice(0, 200).map((entry) => {
+          const cat = classifyLogMessage(entry.message);
+          const time = entry.time ? new Date(entry.time).toLocaleTimeString() : '';
+          return `<div class="log-row log-${cat}"><span class="log-time">${escapeHtml(time)}</span><span class="log-cat">${cat}</span><span class="log-msg">${escapeHtml(entry.message || '')}</span></div>`;
+        }).join('');
+      } catch (e) {
+        list.innerHTML = `<div class="empty-state">Failed to load logs: ${escapeHtml(e.message || String(e))}</div>`;
+      }
+    }
+
+    async function copyBotLogs() {
+      try {
+        const list = document.getElementById('botLogsList');
+        if (!list) return;
+        const text = Array.from(list.querySelectorAll('.log-row'))
+          .map((row) => row.textContent.trim())
+          .join('\n');
+        await navigator.clipboard.writeText(text);
+        toast('Copied logs', 'success');
+      } catch (e) {
+        toast('Could not copy', 'error');
+      }
+    }
+
+    async function clearBotLogs() {
+      if (!await confirmDialog('Clear log buffer for this session?', { okText: 'Clear', danger: true })) return;
+      try {
+        await api('/bot-api/logs', { method: 'DELETE' });
+        renderBotLogs();
+        toast('Logs cleared', 'success');
+      } catch (e) {
+        toast(e.message || 'Failed', 'error');
+      }
     }
 
     async function openBotSettings(id) {
       let s = findSessionById(id);
       if (!s) {
-        try {
-          await loadSessions();
-          s = findSessionById(id);
-        } catch { }
+        try { await loadSessions(); s = findSessionById(id); } catch { }
       }
       if (!s) {
         toast('Session data is stale. Sync fleet and try again.', 'error');
@@ -1357,27 +1658,17 @@
       }
       State.activeConfigSession = s.id;
       if (!State.data.settings || !Object.keys(State.data.settings).length) {
-        try {
-          State.data.settings = await api('/bot-api/settings');
-        } catch { }
+        try { State.data.settings = await api('/bot-api/settings'); } catch { }
       }
       if (!Array.isArray(State.data.commands) || !State.data.commands.length) {
-        try {
-          State.data.commands = await api('/bot-api/commands');
-        } catch { State.data.commands = State.data.commands || []; }
+        try { State.data.commands = await api('/bot-api/commands'); } catch { State.data.commands = State.data.commands || []; }
       }
-
       if (!document.getElementById('botSettingsModal')) {
         toast('Bot settings panel is missing from this page.', 'error');
         return;
       }
-
-      setText('botSettingsSubtitle', `${s.name || s.id || 'Session'} • ${s.number || s.id || 'Unlinked device'}`);
+      paintBotIcons();
       syncBotSettingsModal(s);
-
-      setText('botStatProcessed', s.processedCount || 0);
-      setText('botStatCommands', s.commandsCount || 0);
-
       switchBotTab('general');
       openModal('botSettingsModal');
     }
@@ -1386,90 +1677,96 @@
       const id = State.activeConfigSession;
       if (!id) return toast('Select a bot first', 'error');
       try {
-        if (action === 'reconnect') {
-          await reconnectSession(id);
-          return;
-        }
-        if (action === 'qr') {
-          closeModal('botSettingsModal');
-          await openQrFor(id);
-          return;
-        }
-        if (action === 'pair') {
-          closeModal('botSettingsModal');
-          await requestPair(id);
-          return;
-        }
+        if (action === 'reconnect') return await reconnectSession(id);
+        if (action === 'restart') return await reconnectSession(id);
+        if (action === 'qr') { closeModal('botSettingsModal'); return await openQrFor(id); }
+        if (action === 'pair') { closeModal('botSettingsModal'); return await requestPair(id); }
         if (action === 'disconnect') {
+          if (!await confirmDialog('Disconnect this bot from WhatsApp? Credentials are kept.', { okText: 'Disconnect', danger: true })) return;
           await disconnectSession(id);
           closeModal('botSettingsModal');
           return;
         }
         if (action === 'remove') {
+          if (!await confirmDialog('Remove this session and delete its credentials?', { okText: 'Remove', danger: true })) return;
           await removeSession(id);
           closeModal('botSettingsModal');
           if (id === '__main__') toast('Main bot session removed. You can now relink.', 'success');
+          return;
+        }
+        if (action === 'logout') {
+          if (!await confirmDialog('Log out of WhatsApp and delete saved credentials? You will need to scan QR / pair again.', { okText: 'Logout', danger: true })) return;
+          await api(`/bot-api/sessions/${encodeURIComponent(id)}/disconnect`, { method: 'POST' });
+          toast('Logged out and credentials deleted', 'success');
+          closeModal('botSettingsModal');
+          return;
+        }
+        if (action === 'clearError' || action === 'clearQrPause' || action === 'clearPairCode' || action === 'clearCache' || action === 'syncGroups') {
+          await api(`/bot-api/sessions/${encodeURIComponent(id)}/runtime`, {
+            method: 'POST',
+            body: JSON.stringify({ op: action }),
+          });
+          await loadSessions();
+          const updated = getActiveBotSession();
+          if (updated) syncBotSettingsModal(updated);
+          toast('Done', 'success');
+          return;
+        }
+        if (action === 'exportInfo') {
+          const s = getActiveBotSession();
+          if (!s) return;
+          const blob = new Blob([JSON.stringify(s, null, 2)], { type: 'application/json' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `${s.id}-session-info.json`;
+          document.body.appendChild(a); a.click(); a.remove();
+          URL.revokeObjectURL(url);
+          return;
         }
       } catch (e) {
         toast(e.message || 'Action failed', 'error');
       }
     }
 
+    // ── Legacy helpers kept for backwards compat ──
     async function applyBotSetting(key, val) {
       const id = State.activeConfigSession;
       if (!id) return;
-
-      const settings = {};
       const apiVal = key === 'aiGroupMode' && val === 'reply' ? 'always' : val;
-      settings[key] = apiVal;
-      const s = State.data.sessions.find(x => x.id === id);
-      const previous = s ? s[key] : undefined;
-
       try {
         const res = await api(`/bot-api/sessions/${encodeURIComponent(id)}/settings`, {
           method: 'POST',
-          body: JSON.stringify(settings)
+          body: JSON.stringify({ [key]: apiVal }),
         });
+        if (res?.session) {
+          const updated = upsertSession(res.session);
+          if (updated) syncBotSettingsModal(updated);
+        }
+      } catch (e) { toast(e.message, 'error'); }
+    }
 
-        const updated = res?.session ? upsertSession(res.session) : s;
-        if (updated) updated[key] = res?.session?.[key] ?? apiVal;
+    function applyAntiDeleteConfig() { /* no-op shim — replaced by saveBotSettings('privacy') */ }
 
-        if (updated) syncBotSettingsModal(updated);
-        renderManagedUsers();
-        toast('Setting applied', 'success');
+    async function toggleAdvancedModule(moduleKey, enabled) {
+      const id = State.activeConfigSession;
+      const s = State.data.sessions.find((x) => x.id === id);
+      if (!id || !s) return toast('Select a bot first', 'error');
+      const previous = Array.isArray(s.disabledModules) ? [...s.disabledModules] : [];
+      const next = enabled ? previous.filter((it) => it !== moduleKey) : [...new Set([...previous, moduleKey])];
+      try {
+        const res = await api(`/bot-api/sessions/${encodeURIComponent(id)}/settings`, {
+          method: 'POST',
+          body: JSON.stringify({ disabledModules: next }),
+        });
+        if (res?.session) {
+          const updated = upsertSession(res.session);
+          if (updated) syncBotSettingsModal(updated);
+        }
       } catch (e) {
-        if (s) s[key] = previous;
-        if (s) syncBotSettingsModal(s);
+        s.disabledModules = previous;
         toast(e.message, 'error');
       }
-    }
-
-    function setAdTarget(target) {
-      const id = State.activeConfigSession;
-      if (!id) return;
-      const s = (State.data.sessions || []).find(x => x.id === id);
-      const current = (s && typeof s.antiDelete === 'object' && s.antiDelete) ? { ...s.antiDelete } : {};
-      current.target = (target === 'owner') ? 'owner' : 'chat';
-      const chatCard = document.getElementById('adTargetChat');
-      const ownerCard = document.getElementById('adTargetOwner');
-      if (chatCard) chatCard.classList.toggle('active', current.target === 'chat');
-      if (ownerCard) ownerCard.classList.toggle('active', current.target === 'owner');
-      applyBotSetting('antiDelete', current);
-    }
-
-    function applyAntiDeleteConfig(group, key, value) {
-      const id = State.activeConfigSession;
-      if (!id) return;
-      const s = (State.data.sessions || []).find(x => x.id === id);
-      const current = (s && typeof s.antiDelete === 'object' && s.antiDelete) ? { ...s.antiDelete } : {};
-      if (group === 'filters') {
-        current.filters = { ...(current.filters || {}), [key]: !!value };
-      } else if (group === 'enabled') {
-        current.enabled = !!value;
-      } else {
-        current[group] = value;
-      }
-      applyBotSetting('antiDelete', current);
     }
 
     async function applyGlobalBotSetting(key, val, inputEl) {
@@ -1492,48 +1789,16 @@
         });
         State.data.settings = res.settings || State.data.settings;
         await loadSettings();
-        const s = State.data.sessions.find(x => x.id === State.activeConfigSession);
+        const s = State.data.sessions.find((x) => x.id === State.activeConfigSession);
         if (s) syncBotSettingsModal(s);
-        toast('Global setting applied', 'success');
       } catch (e) {
         State.data.settings = previousSettings;
         if (inputEl) inputEl.checked = !!previousSettings[key];
-        const s = State.data.sessions.find(x => x.id === State.activeConfigSession);
-        if (s) syncBotSettingsModal(s);
-        toast(e.message, 'error');
       } finally {
         if (inputEl) inputEl.disabled = false;
       }
     }
-
-    async function toggleAdvancedModule(moduleKey, enabled, inputEl) {
-      const id = State.activeConfigSession;
-      const s = State.data.sessions.find(x => x.id === id);
-      if (!id || !s) return toast('Select a bot first', 'error');
-      const previous = Array.isArray(s.disabledModules) ? [...s.disabledModules] : [];
-      const next = enabled
-        ? previous.filter((item) => item !== moduleKey)
-        : [...new Set([...previous, moduleKey])];
-      if (inputEl) inputEl.disabled = true;
-      try {
-        const res = await api(`/bot-api/sessions/${encodeURIComponent(id)}/settings`, {
-          method: 'POST',
-          body: JSON.stringify({ disabledModules: next }),
-        });
-        const updated = res?.session ? upsertSession(res.session) : s;
-        updated.disabledModules = res?.session?.disabledModules || next;
-        syncBotSettingsModal(updated);
-        renderManagedUsers();
-        toast(`${moduleKey} module ${enabled ? 'enabled' : 'disabled'}`, 'success');
-      } catch (e) {
-        s.disabledModules = previous;
-        if (inputEl) inputEl.checked = !previous.includes(moduleKey);
-        syncBotSettingsModal(s);
-        toast(e.message, 'error');
-      } finally {
-        if (inputEl) inputEl.disabled = false;
-      }
-    }
+    // ===== END BOT SETTINGS =====
 
     function renderUsersPage() {
       renderManagedUsers();

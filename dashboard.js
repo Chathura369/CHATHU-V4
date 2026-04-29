@@ -168,6 +168,13 @@ function getMainSessionPayload() {
         antiViewOnce: ov.antiViewOnce || false,
         antiGroupJoin: ov.antiGroupJoin || false,
         mentionReply: ov.mentionReply || '',
+        privacyAutoCleanup: !!ov.privacyAutoCleanup,
+        privacyMaxStorageMb: ov.privacyMaxStorageMb || 500,
+        limits: ov.limits || {},
+        lastError: appState.getLastError ? (appState.getLastError() || null) : (ov.lastError || null),
+        reconnectAttempts: appState.getReconnectAttempts ? (appState.getReconnectAttempts() || 0) : 0,
+        connectedAt: appState.getConnectedAt ? (appState.getConnectedAt() || null) : null,
+        platform: 'Main Process',
         aiKeysStatus: {
             gemini: !!(config.GEMINI_API_KEY && config.GEMINI_API_KEY.trim()),
             openrouter: !!(config.OPENROUTER_API_KEY && config.OPENROUTER_API_KEY.trim()),
@@ -786,7 +793,7 @@ app.post('/bot-api/sessions/:id/settings', authMiddleware, async (req, res) => {
             let settingsChanged = false;
             if (workMode !== undefined) {
                 const normalizedMode = String(workMode).toLowerCase();
-                if (['public', 'private', 'self'].includes(normalizedMode)) {
+                if (['public', 'private', 'self', 'group'].includes(normalizedMode)) {
                     appState.setWorkMode(normalizedMode);
                     settingsChanged = true;
                 }
@@ -830,6 +837,20 @@ app.post('/bot-api/sessions/:id/settings', authMiddleware, async (req, res) => {
             if (req.body.autoViewStatus !== undefined) overrides.autoViewStatus = !!req.body.autoViewStatus;
             if (req.body.antiViewOnce !== undefined) overrides.antiViewOnce = !!req.body.antiViewOnce;
             if (req.body.antiGroupJoin !== undefined) overrides.antiGroupJoin = !!req.body.antiGroupJoin;
+            if (req.body.privacyAutoCleanup !== undefined) overrides.privacyAutoCleanup = !!req.body.privacyAutoCleanup;
+            if (req.body.privacyMaxStorageMb !== undefined) overrides.privacyMaxStorageMb = parseInt(req.body.privacyMaxStorageMb) || 500;
+            if (req.body.limits !== undefined && typeof req.body.limits === 'object' && req.body.limits) {
+                const lim = req.body.limits;
+                overrides.limits = {
+                    cmdPerMin: parseInt(lim.cmdPerMin) || 0,
+                    aiPerMin: parseInt(lim.aiPerMin) || 0,
+                    downloadCooldownSec: parseInt(lim.downloadCooldownSec) || 0,
+                    maxConcurrentDownloads: parseInt(lim.maxConcurrentDownloads) || 3,
+                    maxFileSizeMb: parseInt(lim.maxFileSizeMb) || 100,
+                    broadcastDelayMs: parseInt(lim.broadcastDelayMs) || 0,
+                    schedulerDelayMs: parseInt(lim.schedulerDelayMs) || 0,
+                };
+            }
 
             db.setSetting('main_bot_settings', overrides);
             db.flush();
@@ -1012,23 +1033,65 @@ app.post('/bot-api/sessions/:id/disconnect', authMiddleware, async (req, res) =>
     res.json(result);
 });
 
-app.post('/bot-api/sessions/:id/settings', authMiddleware, async (req, res) => {
+// ── Per-session runtime ops (clear error, clear caches, sync groups, etc.) ──
+app.post('/bot-api/sessions/:id/runtime', authMiddleware, async (req, res) => {
     const { id } = req.params;
-    const body = req.body || {};
+    const op = String(req.body?.op || '').trim();
+    if (!op) return res.status(400).json({ error: 'Missing op' });
     try {
         if (id === '__main__') {
-            const current = db.getSetting('main_bot_settings') || {};
-            const next = { ...current, ...body };
-            db.setSetting('main_bot_settings', next);
+            const overrides = db.getSetting('main_bot_settings') || {};
+            if (op === 'clearError') {
+                overrides.lastError = null;
+                if (typeof appState.clearLastError === 'function') appState.clearLastError();
+            } else if (op === 'clearQrPause') {
+                if (typeof appState.setQrPaused === 'function') appState.setQrPaused(false);
+            } else if (op === 'clearPairCode') {
+                if (typeof appState.setMainPairCode === 'function') appState.setMainPairCode(null);
+            } else if (op === 'clearCache') {
+                overrides.lastError = null;
+            } else if (op === 'syncGroups') {
+                const sock = appState.getSocket();
+                if (sock && typeof sock.groupFetchAllParticipating === 'function') {
+                    try { await sock.groupFetchAllParticipating(); } catch { /* best-effort */ }
+                }
+            } else {
+                return res.status(400).json({ error: 'Unknown op' });
+            }
+            db.setSetting('main_bot_settings', overrides);
             db.flush();
             const session = getMainSessionPayload();
             io.emit('session:update', session);
             return res.json({ ok: true, session });
         }
         const sessionMgr = require('./session-manager');
-        const result = await sessionMgr.updateSessionSettings(id, body);
-        if (result.error) return res.status(400).json(result);
-        res.json(result);
+        const result = sessionMgr.runRuntimeOp ? await sessionMgr.runRuntimeOp(id, op) : { ok: true };
+        if (result?.error) return res.status(400).json(result);
+        return res.json(result || { ok: true });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── Per-session group listing ──────────────────────────────────────────────
+app.get('/bot-api/sessions/:id/groups', authMiddleware, async (req, res) => {
+    const { id } = req.params;
+    try {
+        const allGroups = db.getAll('groups') || {};
+        const list = Object.entries(allGroups)
+            .filter(([jid, group]) => {
+                if (!group) return false;
+                const owner = group.botSessionId || group.sessionId || '__main__';
+                return owner === id;
+            })
+            .map(([jid, group]) => ({
+                jid,
+                name: group.name || group.subject || jid,
+                memberCount: group.memberCount || group.size || 0,
+                welcome: !!group.welcome,
+                goodbye: !!group.goodbye,
+                antiLink: !!group.antiLink,
+                aiMode: group.aiMode || null,
+            }));
+        res.json(list);
     } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -1108,7 +1171,7 @@ app.post('/bot-api/settings', authMiddleware, (req, res) => {
         if (autoTyping !== undefined) db.setSetting('autoTyping', !!autoTyping);
         if (nsfwEnabled !== undefined) db.setSetting('nsfwEnabled', !!nsfwEnabled);
         if (workMode !== undefined) {
-            const normalizedWorkMode = ['public', 'private', 'self'].includes(String(workMode).toLowerCase())
+            const normalizedWorkMode = ['public', 'private', 'self', 'group'].includes(String(workMode).toLowerCase())
                 ? String(workMode).toLowerCase()
                 : 'public';
             db.setSetting('work_mode', normalizedWorkMode);
