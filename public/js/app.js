@@ -1361,6 +1361,11 @@
           State.data.settings = await api('/bot-api/settings');
         } catch { }
       }
+      if (!Array.isArray(State.data.commands) || !State.data.commands.length) {
+        try {
+          State.data.commands = await api('/bot-api/commands');
+        } catch { State.data.commands = State.data.commands || []; }
+      }
 
       if (!document.getElementById('botSettingsModal')) {
         toast('Bot settings panel is missing from this page.', 'error');
