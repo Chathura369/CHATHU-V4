@@ -39,6 +39,20 @@ curl -s -o /dev/null -w "%{http_code}" http://localhost:5301/login  # expect 200
 - **Page IDs**: Must be added to `PAGE_IDS` array in `dashboard.js` (~line 525)
 - **Sidebar nav**: Must be added to ALL page HTML files (admin.html + every file in public/pages/)
 
+## UI Navigation Map
+
+Not every page has a direct sidebar entry. Two important non-obvious paths:
+
+- **Per-session bot settings** (Anti-Delete, Anti View-Once, Auto Cleanup, Storage Limit, Recovery Routing, AI Engine, Modules, Groups, etc.):
+  Sidebar **Fleet Orchestration** → **Manage** button on the session row → **Bot Settings** modal → tab **Privacy / Anti-Delete** (and other tabs).
+  The page is `public/pages/users.html` (`meta name="page" content="users"`); URL `/users` opens it. The Anti View-Once switch is `#botAntiViewOnce` and saves auto-on-toggle (header reads "All changes saved").
+  - Saves via `POST /bot-api/sessions/__main__/settings {antiViewOnce:true}` for the main session, or `/bot-api/sessions/<id>/settings` for sub-sessions.
+  - Persists to `db.setting('anti_view_once')` — the **same** key `bot.js:734` reads in the capture loop (`lib/viewonce-capture.js:209-211`).
+
+- **User Management** (sidebar "User Management") is a *different* page — `public/pages/users_db.html` (`meta page=users_db`, URL `/users_db`). It manages user records (Owner / Premium / Restrict roles), NOT bot session settings. Do not confuse the two.
+
+- **Sessions** (sidebar "Sessions", URL `/sessions`) only shows QR / Pair / Retry buttons for connecting WhatsApp. Per-session bot settings live on Fleet Orchestration's `Manage` modal as above.
+
 ## Seeding Test Data
 
 For features that need test files (e.g., View Once Gallery):
@@ -83,6 +97,7 @@ EOF
 3. **Inline scripts in page HTML**: Scripts in page HTML files run after `app.js` loads (it's included via `<script src="/js/app.js"></script>` before inline scripts). Use functions from app.js directly — don't redefine them.
 4. **Static file security**: Files under `public/` are served without auth by Express static middleware. Never put sensitive files there.
 5. **check:admin-ui script**: `npm run check:admin-ui` may fail because `scripts/check-admin-ui.js` might not exist. This is a known repo issue — skip it.
+6. **`npm install` postinstall failure**: `ffmpeg-static`'s postinstall fetches a binary from GitHub releases and can fail in restricted networks (502 etc.). Use `npm install --ignore-scripts` — `ffmpeg` is already on the system at `/usr/bin/ffmpeg` and the bot logs `[ffmpeg] Using: /usr/bin/ffmpeg` at startup, so the bundled binary is not required.
 
 ## Devin Secrets Needed
 
@@ -101,12 +116,10 @@ async def login():
         page = context.pages[-1]
         await page.goto("http://localhost:5301/login")
         await page.wait_for_load_state("networkidle")
-        await page.fill('input[type="text"]', 'admin')
+        await page.fill('input[name="username"], input#username, input[placeholder*=admin i]', 'admin')
         await page.fill('input[type="password"]', 'chathura123')
-        await page.click('button[type="submit"]')
-        await page.wait_for_load_state("networkidle")
-        await asyncio.sleep(2)
-        print("Logged in:", page.url)
+        await page.click('button:has-text("Sign In")')
+        await page.wait_for_url('**/admin*', timeout=10000)
 
 asyncio.run(login())
 ```
