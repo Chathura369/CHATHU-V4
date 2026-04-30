@@ -39,23 +39,14 @@ function isNoisySignalLine(args) {
 const _origConsoleError = console.error.bind(console);
 const _origConsoleLog = console.log.bind(console);
 const { logger } = require('./logger');
-let noisySignalCount = 0;
 
 console.error = (...args) => { 
-    if (isNoisySignalLine(args)) {
-        noisySignalCount += 1;
-        if (noisySignalCount % 50 === 0) logger(`[Signal Noise] suppressed ${noisySignalCount} noisy decrypt/session logs`);
-        return;
-    }
+    if (isNoisySignalLine(args)) return; 
     _origConsoleError(...args);
     try { logger('[ERROR] ' + args.map(a => (a instanceof Error ? a.stack || a.message : String(a))).join(' ')); } catch {}
 };
 console.log = (...args) => { 
-    if (isNoisySignalLine(args)) {
-        noisySignalCount += 1;
-        if (noisySignalCount % 50 === 0) logger(`[Signal Noise] suppressed ${noisySignalCount} noisy decrypt/session logs`);
-        return;
-    }
+    if (isNoisySignalLine(args)) return; 
     _origConsoleLog(...args);
     try { logger(args.map(a => String(a)).join(' ')); } catch {}
 };
@@ -69,29 +60,16 @@ process.on('warning', (warning) => {
     _origConsoleError(warning);
 });
 
-function fatalRestart(label, error) {
-    const detail = error instanceof Error ? (error.stack || error.message) : String(error);
-    logger(`[${label}] ${detail}`);
-    setTimeout(() => process.exit(1), 250).unref?.();
-}
-
+// Final safety net: never crash on uncaught Signal/decryption errors
 process.on('uncaughtException', (err) => {
     const msg = String(err?.message || err);
-    if (NOISY_PATTERNS.some(re => re.test(msg))) {
-        noisySignalCount += 1;
-        return;
-    }
+    if (NOISY_PATTERNS.some(re => re.test(msg))) return;
     _origConsoleError('[uncaughtException]', err);
-    fatalRestart('uncaughtException', err);
 });
 process.on('unhandledRejection', (reason) => {
     const msg = String(reason?.message || reason);
-    if (NOISY_PATTERNS.some(re => re.test(msg))) {
-        noisySignalCount += 1;
-        return;
-    }
+    if (NOISY_PATTERNS.some(re => re.test(msg))) return;
     _origConsoleError('[unhandledRejection]', reason);
-    fatalRestart('unhandledRejection', reason);
 });
 
 const { startDashboard } = require('./dashboard');

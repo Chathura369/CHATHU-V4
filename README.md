@@ -66,11 +66,10 @@ hosts: Railway, Render, Fly.io, and any Docker-friendly platform.
 | `PORT` | Dashboard port | Auto-injected by Railway / Render / Fly. Leave unset there. |
 | `HOST` | Bind interface | Defaults to `0.0.0.0` (correct for containers). |
 | `DATA_DIR` | Persistent state root | Point at the mounted volume so `db.json`, WhatsApp creds, downloads survive restarts. |
-| `ADMIN_USER` / `ADMIN_PASS` | Dashboard login | Default user is `admin`; `ADMIN_PASS` must be set before dashboard login is enabled. |
+| `ADMIN_USER` / `ADMIN_PASS` | Dashboard login | Default user `admin`, default pass `chathura123`. **Change in production.** |
 | `JWT_SECRET` | Admin session signing | Auto-generated and persisted to `${DATA_DIR}/.jwt_secret` if not set. |
 | `OWNER_NUMBER` | Bot owner WhatsApp number | Used for owner-only commands. |
-| `GEMINI_API_KEY` / `OPENAI_API_KEY` / `GROQ_API_KEY` / `OPENROUTER_API_KEY` | AI providers | All optional; set through host environment variables/secrets. |
-| `OMDB_API_KEY` / `OPENWEATHER_API_KEY` / `NEWS_API_KEY` | Search providers | Optional keys for movie/weather/news commands. |
+| `GEMINI_API_KEY` / `OPENAI_API_KEY` / `GROQ_API_KEY` / `OPENROUTER_API_KEY` | AI providers | All optional. |
 
 The dashboard exposes a lightweight `GET /health` endpoint for platform
 healthchecks (`/healthz` is also available as a plain-text alias).

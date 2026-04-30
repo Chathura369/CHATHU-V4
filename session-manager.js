@@ -21,12 +21,6 @@ const { logger } = require('./logger');
 const { normalizeOwner } = require('./lib/utils');
 
 const VALID_WORK_MODES = new Set(['public', 'private', 'self', 'group']);
-const MAX_RECONNECT_ATTEMPTS = 6;
-
-function getReconnectDelay(attempt) {
-    const capped = Math.min(Math.max(Number(attempt) || 1, 1), MAX_RECONNECT_ATTEMPTS);
-    return Math.min(60000, 5000 * (2 ** (capped - 1)));
-}
 
 function metadataPath(id) {
     return path.join(SESSIONS_DIR, id, 'metadata.json');
@@ -113,8 +107,8 @@ function sessionSnapshot(id, s) {
         autoViewStatus: s.autoViewStatus || false,
         antiViewOnce: s.antiViewOnce || false,
         antiGroupJoin: s.antiGroupJoin || false,
-        aiAutoReply: s.aiAutoReply === true,
-        aiAutoVoice: s.aiAutoVoice === true,
+        aiAutoReply: s.aiAutoReply || false,
+        aiAutoVoice: s.aiAutoVoice || false,
         aiAutoPersona: s.aiAutoPersona || null,
         aiAutoLang: s.aiAutoLang || null,
         aiGroupMode: s.aiGroupMode || null,
@@ -474,7 +468,6 @@ async function createSession(id, opts = {}) {
         pairMode: !!opts.pairMode,
         reconnectTimer: null,
         qrPaused: false,
-        reconnectAttempts: 0,
         manualDisconnectKeep: false,
         // New management fields
         owner: normalizeOwner(opts.owner),
@@ -623,24 +616,13 @@ async function startSocket(id, entry) {
                 logger(`[Session ${id}] Closed (code ${code})`);
 
                 if (!loggedOut && !entry.qrPaused) {
-                    entry.reconnectAttempts = (entry.reconnectAttempts || 0) + 1;
-                    if (entry.reconnectAttempts > MAX_RECONNECT_ATTEMPTS) {
-                        entry.qrPaused = true;
-                        entry.status = 'Idle (Paused)';
-                        emit('session:update', { id, status: entry.status, reconnectAttempts: entry.reconnectAttempts });
-                        logger(`[Session ${id}] Reconnect paused after ${MAX_RECONNECT_ATTEMPTS} failed attempts. Use dashboard reconnect.`);
-                        return;
-                    }
-                    const delayMs = getReconnectDelay(entry.reconnectAttempts);
-                    emit('session:update', { id, status: entry.status, reconnectAttempts: entry.reconnectAttempts });
-                    logger(`[Session ${id}] Auto-reconnect attempt ${entry.reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS} in ${Math.round(delayMs / 1000)}s`);
+                    // Auto-reconnect after 5 seconds
                     entry.reconnectTimer = setTimeout(() => {
                         if (registry.has(id) && !registry.get(id).qrPaused) {
                             logger(`[Session ${id}] Auto-reconnecting...`);
                             startSocket(id, registry.get(id)).catch(e => logger(`[Session ${id}] Reconnect error: ${e.message}`));
                         }
-                    }, delayMs);
-                    if (typeof entry.reconnectTimer.unref === 'function') entry.reconnectTimer.unref();
+                    }, 5000);
                 } else if (loggedOut) {
                     if (entry.manualDisconnectKeep) {
                         entry.manualDisconnectKeep = false;
@@ -663,7 +645,6 @@ async function startSocket(id, entry) {
                 entry.number = num;
                 entry.name = sock.user?.name || null;
                 entry.status = 'Connected';
-                entry.reconnectAttempts = 0;
                 entry.qrAttempts = 0;
                 entry.qrPaused = false;
 
@@ -680,14 +661,13 @@ async function startSocket(id, entry) {
                 emit('session:update', { id, status: 'Connected', number: num, platform: entry.platform });
                 logger(`[Session ${id}] Connected as ${num} on ${entry.platform}`);
 
-                setTimeout(() => {
-                    try {
-                        const { syncGroups } = require('./bot');
-                        if (syncGroups) syncGroups(sock, id).catch((e) => logger(`[Session ${id}] Group sync failed: ${e.message}`));
-                    } catch (e) {
-                        logger(`[Session ${id}] Group sync failed: ${e.message}`);
-                    }
-                }, 3000).unref?.();
+                // Sync groups for sub-session
+                try {
+                    const { syncGroups } = require('./bot');
+                    if (syncGroups) await syncGroups(sock, id);
+                } catch (e) {
+                    logger(`[Session ${id}] Group sync failed: ${e.message}`);
+                }
                 applyProFeatureLoops(id, entry);
             }
         });
@@ -795,7 +775,6 @@ async function autoRestore() {
             phoneNumber: null,
             reconnectTimer: null,
             qrPaused: false,
-            reconnectAttempts: 0,
             manualDisconnectKeep: false,
             owner: normalizeOwner(meta.owner),
             workMode: meta.workMode || 'public',
@@ -914,9 +893,8 @@ async function reconnectSession(id) {
     if (entry.status === 'Connected') return { error: 'Already connected' };
     entry.qrAttempts = 0;
     entry.qrPaused = false;
-    entry.reconnectAttempts = 0;
     entry.status = 'Restarting';
-    emit('session:update', { id, status: 'Restarting', reconnectAttempts: 0 });
+    emit('session:update', { id, status: 'Restarting' });
     if (entry.reconnectTimer) { clearTimeout(entry.reconnectTimer); entry.reconnectTimer = null; }
     await destroySocket(id, { logout: false });
     await startSocket(id, entry);
