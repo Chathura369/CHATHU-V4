@@ -4,7 +4,6 @@ const path = require("path");
 const fs = require("fs");
 const crypto = require("crypto");
 
-const DEFAULT_ADMIN_PASS = "chathura123";
 const DEFAULT_JWT_SECRET = "replace_this_jwt_secret_before_production";
 
 function readInt(value, fallback) {
@@ -69,19 +68,19 @@ function ensureJwtSecret() {
   }
 }
 
-const ADMIN_PASS = readString(process.env.ADMIN_PASS, DEFAULT_ADMIN_PASS);
+const ADMIN_PASS = readString(process.env.ADMIN_PASS);
 const JWT_SECRET = ensureJwtSecret();
 
 module.exports = {
   BOT_NAME: process.env.BOT_NAME || "Chathu MD",
-  OWNER_NUMBER: process.env.OWNER_NUMBER || "94742514900",
+  OWNER_NUMBER: readString(process.env.OWNER_NUMBER),
   PREFIX: process.env.PREFIX || ".",
   PORT: readInt(process.env.PORT, 5000),
   HOST: readString(process.env.HOST, "0.0.0.0"),
   ADMIN_USER: readString(process.env.ADMIN_USER, "admin"),
   ADMIN_PASS,
   JWT_SECRET,
-  PREMIUM_CODE: process.env.PREMIUM_CODE || "CHATHU2026",
+  PREMIUM_CODE: readString(process.env.PREMIUM_CODE),
   DATA_DIR,
   SESSION_DIR,
   SESSIONS_DIR,
@@ -92,14 +91,16 @@ module.exports = {
   BROWSER: ["Ubuntu", "Chrome", "131.0.6778.205"],
   SEARCH_CACHE_TTL: readInt(process.env.SEARCH_CACHE_TTL, 300000),
   DOWNLOAD_CACHE_TTL: readInt(process.env.DOWNLOAD_CACHE_TTL, 10 * 60 * 1000),
-  AUTO_READ: String(process.env.AUTO_READ || "true").toLowerCase() !== "false",
+  AUTO_READ: String(process.env.AUTO_READ || "false").toLowerCase() === "true",
   AUTO_TYPING: String(process.env.AUTO_TYPING || "true").toLowerCase() !== "false",
-  NSFW_ENABLED: String(process.env.NSFW_ENABLED || "true").toLowerCase() !== "false",
+  NSFW_ENABLED: String(process.env.NSFW_ENABLED || "false").toLowerCase() === "true",
   WORK_MODE: process.env.WORK_MODE || "public",
   GEMINI_API_KEY: process.env.GEMINI_API_KEY || "",
   OPENAI_API_KEY: process.env.OPENAI_API_KEY || "",
   GROQ_API_KEY: process.env.GROQ_API_KEY || "",
   OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY || "",
-  DEFAULT_ADMIN_PASS,
+  OMDB_API_KEY: process.env.OMDB_API_KEY || "",
+  OPENWEATHER_API_KEY: process.env.OPENWEATHER_API_KEY || "",
+  NEWS_API_KEY: process.env.NEWS_API_KEY || "",
   DEFAULT_JWT_SECRET,
 };

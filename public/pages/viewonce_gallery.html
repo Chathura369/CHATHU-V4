@@ -293,9 +293,8 @@
         const isImage = v.mediaType === 'image';
         const isVideo = v.mediaType === 'video';
         const isAudio = v.mediaType === 'audio';
-        const previewUrl = '/bot-api/viewonce/' + encodeURIComponent(v.filename);
-        const token = State.token;
-        const authUrl = previewUrl + '?token=' + encodeURIComponent(token);
+        const previewUrl = v.assetUrl || ('/bot-api/viewonce/' + encodeURIComponent(v.filename));
+        const authUrl = previewUrl;
 
         let previewHtml = '';
         if (isImage) {
@@ -329,13 +328,12 @@
     }
 
     function openLightbox(filename) {
-      const item = voData.find(v => v.filename === filename);
+      var item = voData.find(v => v.filename === filename);
       if (!item) return;
       const lb = document.getElementById('lightbox');
       const content = document.getElementById('lightboxContent');
       const info = document.getElementById('lightboxInfo');
-      const token = State.token;
-      const url = '/bot-api/viewonce/' + encodeURIComponent(filename) + '?token=' + encodeURIComponent(token);
+      const url = item.assetUrl || ('/bot-api/viewonce/' + encodeURIComponent(filename));
 
       if (item.mediaType === 'image') {
         content.innerHTML = '<img src="' + url + '" alt="View Once" />';
@@ -361,9 +359,9 @@
     }
 
     function downloadVO(filename) {
-      const token = State.token;
       const a = document.createElement('a');
-      a.href = '/bot-api/viewonce/' + encodeURIComponent(filename) + '/download?token=' + encodeURIComponent(token);
+      var item = voData.find(v => v.filename === filename);
+      a.href = item?.downloadUrl || ('/bot-api/viewonce/' + encodeURIComponent(filename) + '/download');
       a.download = filename;
       a.click();
     }
