@@ -20,6 +20,7 @@ let _qrPaused = false;
 let _qrAttempts = 0;
 let _processedCount = 0;
 let _commandsCount = 0;
+let _reconnectAttempts = 0;
 const _logs = [];
 
 module.exports = {
@@ -66,6 +67,13 @@ module.exports = {
     },
     getCommandsCount: () => {
         try { return require('./lib/db').getSetting('main_commands_count') || _commandsCount; } catch { return _commandsCount; }
+    },
+    setReconnectAttempts: (n) => {
+        _reconnectAttempts = Math.max(0, parseInt(n, 10) || 0);
+        try { require('./lib/db').setSetting('main_reconnect_attempts', _reconnectAttempts); } catch {}
+    },
+    getReconnectAttempts: () => {
+        try { return require('./lib/db').getSetting('main_reconnect_attempts') || _reconnectAttempts; } catch { return _reconnectAttempts; }
     },
     setWorkMode: (v) => { 
         _workMode = v; 

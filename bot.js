@@ -23,9 +23,13 @@ const { captureViewOnce, isAntiViewOnceEnabled } = require('./lib/viewonce-captu
 const BAD_WORDS = ['fuck', 'shit', 'bitch', 'asshole', 'bastard', 'cunt', 'dick', 'pussy', 'whore', 'nigger'];
 const messageStore = [];
 const spamMap = new Map();
+const statusSyncState = new Map();
+const MAIN_MAX_RECONNECT_ATTEMPTS = 6;
+const GROUP_SYNC_INTERVAL_MS = 30 * 60 * 1000;
 
 let activeSocket = null;
 let reconnectTimer = null;
+let reconnectAttempts = 0;
 let startPromise = null;
 const proTimers = new Map();
 
@@ -56,6 +60,55 @@ function clearReconnectTimer() {
     if (reconnectTimer) {
         clearTimeout(reconnectTimer);
         reconnectTimer = null;
+    }
+}
+
+function compactKey(key = {}) {
+    if (!key || typeof key !== 'object') return null;
+    const cloned = {};
+    for (const field of ['remoteJid', 'id', 'participant', 'participantAlt', 'remoteJidAlt', 'fromMe']) {
+        if (key[field] !== undefined && key[field] !== null) cloned[field] = key[field];
+    }
+    return cloned.remoteJid && cloned.id ? cloned : null;
+}
+
+function pickStatusParticipant(key = {}, fallback = null) {
+    return key.participant || key.participantAlt || key.remoteJidAlt || fallback || null;
+}
+
+function getReconnectDelay(attempt) {
+    const capped = Math.min(Math.max(Number(attempt) || 1, 1), MAIN_MAX_RECONNECT_ATTEMPTS);
+    return Math.min(60000, 5000 * (2 ** (capped - 1)));
+}
+
+async function markStatusViewed(sock, key, participant, sessionId) {
+    try {
+        const readKey = compactKey(key);
+        if (!readKey || !participant) throw new Error('missing status key fields');
+        await sock.readMessages([readKey]);
+        logger(`[Status View] Success ${sessionId || "__main__"}:${participant}`);
+        return true;
+    } catch (error) {
+        logger(`[Status View] Failed: ${error.message}`);
+        return false;
+    }
+}
+
+async function reactToStatus(sock, key, participant, emoji, sessionId) {
+    try {
+        const reactKey = compactKey(key);
+        if (!reactKey || !participant) throw new Error('missing status key fields');
+        await sock.sendMessage('status@broadcast', {
+            react: {
+                text: emoji,
+                key: reactKey
+            }
+        }, { statusJidList: [participant] });
+        logger(`[Status React] Success ${sessionId || "__main__"}:${participant} ${emoji}`);
+        return true;
+    } catch (error) {
+        logger(`[Status React] Failed: ${error.message}`);
+        return false;
     }
 }
 
@@ -381,21 +434,40 @@ async function stopBot(options = {}) {
     }
 }
 
-function scheduleReconnect(delayMs = 5000) {
+function scheduleReconnect(delayMs = null) {
     if (appState.isQrPaused()) return;
     if (reconnectTimer) return;
+
+    reconnectAttempts += 1;
+    if (typeof appState.setReconnectAttempts === 'function') {
+        appState.setReconnectAttempts(reconnectAttempts);
+    }
+
+    if (reconnectAttempts > MAIN_MAX_RECONNECT_ATTEMPTS) {
+        logger(`[Main Bot] Reconnect paused after ${MAIN_MAX_RECONNECT_ATTEMPTS} failed attempts. Use dashboard reconnect.`);
+        appState.setQrPaused(true);
+        appState.setStatus('Idle (Paused)');
+        return;
+    }
+
+    const waitMs = delayMs || getReconnectDelay(reconnectAttempts);
+    logger(`[Main Bot] Reconnect attempt ${reconnectAttempts}/${MAIN_MAX_RECONNECT_ATTEMPTS} scheduled in ${Math.round(waitMs / 1000)}s.`);
 
     reconnectTimer = setTimeout(() => {
         reconnectTimer = null;
         startBot({ forceRestart: true }).catch((error) => {
             logger(`Reconnect Error: ${error.message}`);
         });
-    }, delayMs);
+    }, waitMs);
+    if (typeof reconnectTimer.unref === 'function') reconnectTimer.unref();
 }
 
 async function syncGroups(sock, sessionId = '__main__') {
     try {
         if (!sock.groupFetchAllFull) return;
+        const lastSync = statusSyncState.get(sessionId) || 0;
+        if (Date.now() - lastSync < GROUP_SYNC_INTERVAL_MS) return;
+        statusSyncState.set(sessionId, Date.now());
         const groups = await sock.groupFetchAllFull();
         Object.entries(groups).forEach(([jid, metadata]) => {
             db.update('groups', jid, {
@@ -408,6 +480,14 @@ async function syncGroups(sock, sessionId = '__main__') {
     } catch (error) {
         logger(`[${sessionId}] Group Sync Error: ${error.message}`);
     }
+}
+
+function scheduleGroupSync(sock, sessionId = '__main__') {
+    setTimeout(() => {
+        syncGroups(sock, sessionId).catch((error) => {
+            logger(`[${sessionId}] Background group sync failed: ${error.message}`);
+        });
+    }, 3000).unref?.();
 }
 
 async function createSocket(options = {}) {
@@ -482,8 +562,12 @@ async function createSocket(options = {}) {
             if (connection === 'open') {
                 clearReconnectTimer();
                 logger('[Main Bot] Connected.');
+                reconnectAttempts = 0;
                 sock.startTime = Math.floor(Date.now() / 1000); // Refresh start time on open
                 appState.setStatus('Connected');
+                if (typeof appState.setReconnectAttempts === 'function') {
+                    appState.setReconnectAttempts(0);
+                }
                 appState.resetQrAttempts();
                 appState.setQrPaused(false);
                 appState.setConnectedAt(new Date().toISOString());
@@ -501,7 +585,7 @@ async function createSocket(options = {}) {
                     dashboardIO.emit('update', { status: 'Connected', number });
                 }
 
-                await syncGroups(sock, '__main__');
+                scheduleGroupSync(sock, '__main__');
                 applyProFeatureLoops(sock, '__main__');
                 return;
             }
@@ -674,7 +758,7 @@ async function handleMessages(sock, messageBatch, sessionId = '__main__') {
             sName = session.name || null;
             sAutoReply = session.autoReply !== null && session.autoReply !== undefined
                 ? session.autoReply
-                : true; // Default to true if not specified per-bot
+                : appState.getAutoReply();
 
             sAiAutoReply = session.aiAutoReply !== null && session.aiAutoReply !== undefined ? session.aiAutoReply : null;
             sAiAutoVoice = session.aiAutoVoice !== null && session.aiAutoVoice !== undefined ? session.aiAutoVoice : null;
@@ -693,10 +777,10 @@ async function handleMessages(sock, messageBatch, sessionId = '__main__') {
     const finalNsfw = sNsfw !== null ? sNsfw : getNsfwEnabled();
     const finalPrefix = sPrefix || getPrefix();
     const finalBotName = sName || getBotName();
-    const finalAutoReply = sAutoReply !== null ? sAutoReply : true;
+    const finalAutoReply = sAutoReply !== null ? sAutoReply : appState.getAutoReply() === true;
 
     // AI Settings Resolution: Per-bot > Global fallback
-    const finalAiAutoReply = sAiAutoReply !== null ? sAiAutoReply : appState.getAiAutoReply();
+    const finalAiAutoReply = sAiAutoReply !== null ? sAiAutoReply : appState.getAiAutoReply() === true;
     const finalAiAutoVoice = sAiAutoVoice !== null ? sAiAutoVoice : appState.getAiAutoVoice();
     const finalAiAutoPersona = sAiAutoPersona || appState.getAiAutoPersona() || 'friendly';
     const finalAiAutoLang = sAiAutoLang || appState.getAiAutoLang() || 'mixed';
@@ -734,7 +818,14 @@ async function handleMessages(sock, messageBatch, sessionId = '__main__') {
     if (isAntiViewOnceEnabled(sessionId)) {
         for (const msg of messageBatch.messages) {
             if (!msg.message || msg.key?.fromMe) continue;
-            await captureViewOnce(sock, msg, { sessionId, owner }).catch((error) => {
+            const privacySettings = sessionId === '__main__'
+                ? (db.getSetting('main_bot_settings') || {})
+                : (require('./session-manager').get(sessionId) || {});
+            await captureViewOnce(sock, msg, {
+                sessionId,
+                owner,
+                maxStorageMb: privacySettings.privacyMaxStorageMb || 500
+            }).catch((error) => {
                 logger(`[${sessionId}] View Once capture failed: ${error.message}`);
             });
         }
@@ -787,43 +878,20 @@ async function handleMessages(sock, messageBatch, sessionId = '__main__') {
 
                 setTimeout(async () => {
                     try {
-                        const key = msg?.key;
+                        const key = compactKey(msg?.key);
                         const remoteJid = key?.remoteJid;
                         const msgId = key?.id;
-                        let participant = key?.participant || rawParticipant || null;
+                        let participant = pickStatusParticipant(msg?.key, rawParticipant);
 
                         if (!key || !remoteJid || !msgId || !participant) {
                             logger(`[Status] Missing key fields | remoteJid=${remoteJid} msgId=${msgId} participant=${participant}`);
                             return;
                         }
 
-                        let sanitizedParticipant = participant;
-                        if (participant.includes(':') && participant.includes('@')) {
-                            const user = participant.split(':')[0];
-                            const server = participant.split('@')[1];
-                            sanitizedParticipant = `${user}@${server}`;
-                        }
-
-                        logger(`[Status Debug] Incoming status | remoteJid=${remoteJid} participant=${participant} sanitized=${sanitizedParticipant} id=${msgId}`);
+                        logger(`[Status Debug] Incoming status | remoteJid=${remoteJid} participant=${participant} id=${msgId}`);
 
                         if (finalAutoView) {
-                            try {
-                                await sock.readMessages([key]);
-                                logger(`[Status View] readMessages() sent for ${sanitizedParticipant}`);
-
-                                await sock.sendReceipt(
-                                    remoteJid,
-                                    sanitizedParticipant,
-                                    [msgId],
-                                    'read'
-                                ).catch((e) => {
-                                    logger(`[Status View] sendReceipt warning: ${e?.message || e}`);
-                                });
-
-                                logger(`[Status View] Attempted view for ${sanitizedParticipant.split('@')[0]}`);
-                            } catch (viewErr) {
-                                logger(`[Status View] Error: ${viewErr.message}`);
-                            }
+                            await markStatusViewed(sock, key, participant, sessionId);
                         }
 
                         if (finalAutoReact) {
@@ -839,27 +907,15 @@ async function handleMessages(sock, messageBatch, sessionId = '__main__') {
                                     ];
 
                                     const emoji = reactions[Math.floor(Math.random() * reactions.length)];
-                                    const targetJid = jidNormalizedUser(sanitizedParticipant);
+                                    let targetJid = participant;
+                                    try {
+                                        targetJid = jidNormalizedUser(participant);
+                                    } catch { }
 
                                     if (selfJid && targetJid === selfJid) return;
-
-                                    const reactionPayload = {
-                                        react: {
-                                            text: emoji,
-                                            key: key
-                                        }
-                                    };
-
-                                    await sock.sendMessage(
-                                        'status@broadcast',
-                                        reactionPayload,
-                                        { statusJidList: [targetJid] }
-                                    );
-
-                                    logger(`[Status React] Attempted ${emoji} to ${sanitizedParticipant.split('@')[0]}`);
-                                    // logger(`[Status React Debug] response=${JSON.stringify(res)}`);
+                                    await reactToStatus(sock, key, targetJid, emoji, sessionId);
                                 } catch (reactErr) {
-                                    logger(`[Status React] Error: ${reactErr.message}`);
+                                    logger(`[Status React] Failed: ${reactErr.message}`);
                                 }
                             }, reactDelay);
                         }
@@ -946,9 +1002,6 @@ async function handleMessages(sock, messageBatch, sessionId = '__main__') {
                 resolvedSender = potentialNum + '@s.whatsapp.net';
             }
         }
-
-        // Apply global owner override
-        if (sender === '269922018025553@lid') resolvedSender = '94742514900@s.whatsapp.net';
 
         // Automaticaly update user metadata (Name and Last Seen)
         if (sender && sender !== 'status@broadcast') {
