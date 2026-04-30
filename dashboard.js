@@ -26,7 +26,7 @@ const app = express();
 const server = http.createServer(app);
 let dashboardStarted = false;
 const LOGIN_WINDOW_MS = 5 * 60 * 1000;
-const LOGIN_COOLDOWN_MS = 10 * 60 * 1000;
+const LOGIN_COOLDOWN_MS = 2 * 60 * 1000;
 const LOGIN_MAX_ATTEMPTS = 5;
 const loginAttempts = new Map();
 
@@ -76,25 +76,6 @@ function extractBearerToken(value) {
     const raw = String(value || '').trim();
     if (!raw) return null;
     return raw.startsWith('Bearer ') ? raw.slice(7) : raw;
-}
-
-function signedAssetToken(pathname) {
-    return jwt.sign({ assetPath: pathname }, JWT_SECRET, { expiresIn: '10m' });
-}
-
-function assetAuthMiddleware(req, res, next) {
-    const token = req.query.assetToken;
-    if (!token || typeof token !== 'string') return authMiddleware(req, res, next);
-    try {
-        const payload = jwt.verify(token, JWT_SECRET);
-        if (payload.assetPath !== req.path) {
-            return res.status(401).json({ error: 'Invalid asset token' });
-        }
-        req.admin = { asset: true };
-        return next();
-    } catch {
-        return res.status(401).json({ error: 'Invalid or expired asset token' });
-    }
 }
 
 function getAuthConfigState() {
@@ -1323,6 +1304,15 @@ app.delete('/bot-api/files/:name', authMiddleware, (req, res) => {
     } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// ── View Once Gallery ──────────────────────────────────────────────────────
+// Scoped middleware: also accepts ?token= for img/video src attributes
+function authWithQueryToken(req, res, next) {
+    if (!extractBearerToken(req.headers.authorization) && req.query.token) {
+        req.headers.authorization = 'Bearer ' + req.query.token;
+    }
+    authMiddleware(req, res, next);
+}
+
 app.get('/bot-api/viewonce', authMiddleware, (req, res) => {
     try {
         const log = getViewOnceLog();
@@ -1336,15 +1326,7 @@ app.get('/bot-api/viewonce', authMiddleware, (req, res) => {
                 exists = true;
                 sizeMB = (stat.size / 1024 / 1024).toFixed(2);
             } catch { /* file may have been removed manually */ }
-            const filePath = `/bot-api/viewonce/${encodeURIComponent(entry.filename)}`;
-            const downloadPath = `${filePath}/download`;
-            return {
-                ...entry,
-                exists,
-                sizeMB,
-                assetUrl: `${filePath}?assetToken=${encodeURIComponent(signedAssetToken(filePath))}`,
-                downloadUrl: `${downloadPath}?assetToken=${encodeURIComponent(signedAssetToken(downloadPath))}`,
-            };
+            return { ...entry, exists, sizeMB };
         }).filter((e) => e.exists).reverse();
         res.json(enriched);
     } catch (e) {
@@ -1352,14 +1334,14 @@ app.get('/bot-api/viewonce', authMiddleware, (req, res) => {
     }
 });
 
-app.get('/bot-api/viewonce/:name', assetAuthMiddleware, (req, res) => {
+app.get('/bot-api/viewonce/:name', authWithQueryToken, (req, res) => {
     const name = path.basename(req.params.name);
     const fPath = path.join(VO_DIR, name);
     if (!fs.existsSync(fPath)) return res.status(404).json({ error: 'File not found' });
     res.sendFile(fPath);
 });
 
-app.get('/bot-api/viewonce/:name/download', assetAuthMiddleware, (req, res) => {
+app.get('/bot-api/viewonce/:name/download', authWithQueryToken, (req, res) => {
     const name = path.basename(req.params.name);
     const fPath = path.join(VO_DIR, name);
     if (!fs.existsSync(fPath)) return res.status(404).json({ error: 'File not found' });

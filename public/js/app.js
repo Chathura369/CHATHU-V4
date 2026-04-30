@@ -1306,7 +1306,7 @@
       // ── Automation
       setBotInputValue('botAutoReply', getEffective(s, 'autoReply', true));
       setBotInputValue('botAutoTyping', getEffective(s, 'autoTyping', g.autoTyping !== false));
-      setBotInputValue('botAutoRead', getEffective(s, 'autoRead', g.autoRead === true));
+      setBotInputValue('botAutoRead', getEffective(s, 'autoRead', g.autoRead !== false));
       setBotInputValue('botAutoReact', getEffective(s, 'autoReactStatus', g.autoReactStatus === true));
       setBotInputValue('botAutoRecording', !!s.alwaysRecording);
 
@@ -1318,7 +1318,7 @@
       setBotInputValue('botPrivacyAutoCleanup', !!(s.privacyAutoCleanup ?? ad?.autoCleanup));
       setBotInputValue('botPrivacyMaxStorage', s.privacyMaxStorageMb ?? ad?.maxStorageMb ?? 500);
       setBotInputValue('botAntiCall', !!s.antiCall);
-      setBotInputValue('botNsfwFilter', s.nsfwEnabled === true);
+      setBotInputValue('botNsfwFilter', s.nsfwEnabled !== false);
       setBotInputValue('botAntiGroupJoin', !!s.antiGroupJoin);
       const filters = ad?.filters || {};
       setBotInputValue('botAdFilterText', !!filters.text);
@@ -1776,9 +1776,9 @@
           body: JSON.stringify({
             botName: State.data.settings.botName || State.data.settings.name || document.getElementById('setName')?.value || 'Chathu MD',
             prefix: State.data.settings.prefix || document.getElementById('setPrefix')?.value || '.',
-            autoRead: State.data.settings.autoRead === true,
+            autoRead: State.data.settings.autoRead !== false,
             autoTyping: State.data.settings.autoTyping !== false,
-            nsfwEnabled: State.data.settings.nsfwEnabled === true,
+            nsfwEnabled: State.data.settings.nsfwEnabled !== false,
             workMode: State.data.settings.workMode || document.getElementById('setWorkMode')?.value || 'public',
             autoViewStatus: State.data.settings.autoViewStatus !== false,
             autoReactStatus: State.data.settings.autoReactStatus === true,
@@ -2904,9 +2904,9 @@
         document.getElementById('setPrefix').value = data.prefix || '.';
         document.getElementById('setOwner').value = data.ownerNumber || data.owner || '';
         document.getElementById('setPremium').value = data.premiumCode || '';
-        document.getElementById('setAutoRead').checked = data.autoRead === true;
+        document.getElementById('setAutoRead').checked = data.autoRead !== false;
         document.getElementById('setAutoType').checked = data.autoTyping !== false;
-        document.getElementById('setNsfw').checked = data.nsfwEnabled === true;
+        document.getElementById('setNsfw').checked = data.nsfwEnabled !== false;
         document.getElementById('setWorkMode').value = data.workMode || 'public';
         document.getElementById('setAutoViewStatus').checked = data.autoViewStatus !== false;
         document.getElementById('setAutoReactStatus').checked = data.autoReactStatus === true;

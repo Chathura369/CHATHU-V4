@@ -18,12 +18,12 @@ A professional-grade WhatsApp multi-device bot built with Baileys, featuring a C
 |---|---|---|
 | `PORT` | `5000` | Dashboard port |
 | `BOT_NAME` | `Chathu MD` | Bot display name |
-| `OWNER_NUMBER` | (set in env) | WhatsApp owner number |
+| `OWNER_NUMBER` | `94742514900` | WhatsApp owner number |
 | `PREFIX` | `.` | Command prefix |
 | `ADMIN_USER` | `admin` | Dashboard login username |
-| `ADMIN_PASS` | (set in env) | Dashboard login password |
+| `ADMIN_PASS` | `chathura123` | Dashboard login password |
 | `JWT_SECRET` | (set in env) | JWT signing secret |
-| `PREMIUM_CODE` | (set in env) | Premium unlock code |
+| `PREMIUM_CODE` | `SUPREME2026` | Premium unlock code |
 
 ## Running the App
 ```bash
